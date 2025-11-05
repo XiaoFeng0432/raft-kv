@@ -1,12 +1,11 @@
-package com.xf.raft.core;
+package com.xf.raft.node;
 
 import com.xf.raft.core.config.NodeConfig;
 import com.xf.raft.core.entity.*;
-import com.xf.raft.core.service.*;
+import com.xf.raft.core.service.Node;
+import jdk.jfr.DataAmount;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
-
-import java.util.Timer;
 
 @Data
 @Slf4j
@@ -57,8 +56,4 @@ public class DefaultNode implements Node {
     public ClientKVAck redirect(ClientKVReq request) {
         return null;
     }
-
-
-
-
 }

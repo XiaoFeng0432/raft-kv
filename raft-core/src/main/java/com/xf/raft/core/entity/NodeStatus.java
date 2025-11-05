@@ -1,9 +1,9 @@
 package com.xf.raft.core.entity;
 
-public interface NodeStatus {
-    int FOLLOWER = 0;
-    int CANDIDATE = 1;
-    int LEADER = 2;
+public class NodeStatus {
+    public static final int FOLLOWER = 0;
+    public static final int CANDIDATE = 1;
+    public static final int LEADER = 2;
 
     enum Enum{
         FOLLOWER(0),

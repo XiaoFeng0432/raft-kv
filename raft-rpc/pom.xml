@@ -18,16 +18,37 @@
     </properties>
 
     <dependencies>
+        <!-- 依赖 raft-core -->
         <dependency>
             <groupId>com.xiaofeng</groupId>
             <artifactId>raft-core</artifactId>
-            <version>1.0-SNAPSHOT</version>
         </dependency>
 
+        <!-- SOFABolt RPC 框架 (推荐) -->
         <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter</artifactId>
+            <groupId>com.alipay.sofa</groupId>
+            <artifactId>bolt</artifactId>
+        </dependency>
+
+        <!-- Fastjson 序列化 -->
+        <dependency>
+            <groupId>com.alibaba.fastjson2</groupId>
+            <artifactId>fastjson2</artifactId>
+        </dependency>
+
+        <!-- Guava 工具类 -->
+        <dependency>
+            <groupId>com.google.guava</groupId>
+            <artifactId>guava</artifactId>
+        </dependency>
+
+        <!-- 测试 -->
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <scope>test</scope>
         </dependency>
     </dependencies>
+
 
 </project>

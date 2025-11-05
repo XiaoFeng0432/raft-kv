@@ -7,7 +7,7 @@ import com.xf.raft.core.entity.*;
  * Raft 节点接口
  * 聚合了一致性模块、日志模块、状态机模块
  */
-public interface Node {
+public interface Node extends LifeCycle{
     // 配置节点信息（端口、集群等）
     void setConfig(NodeConfig config);
 

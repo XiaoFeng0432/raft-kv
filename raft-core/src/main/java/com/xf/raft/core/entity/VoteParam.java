@@ -14,11 +14,14 @@ import java.io.Serializable;
 @NoArgsConstructor
 @AllArgsConstructor
 public class VoteParam implements Serializable {
+    // 候选人任期号
     private long term;
+    // 被请求者id
+    private String serverId;
     // 候选者id
     private String candidateId;
     // 候选者最后一次日志的索引
-    private String lastLogIndex;
+    private long lastLogIndex;
     // 候选者最后一次日志的任期号
-    private String lastLogTerm;
+    private long lastLogTerm;
 }

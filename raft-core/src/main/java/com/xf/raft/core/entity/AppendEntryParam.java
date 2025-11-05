@@ -14,13 +14,16 @@ import java.util.List;
 @NoArgsConstructor
 @AllArgsConstructor
 public class AppendEntryParam {
+
     private long term;
+    // 被请求者id
+    private String serverId;
     // Leader ID
     private String leaderId;
     // 新日志之前一条日志的索引
-    private String prevLogIndex;
+    private long prevLogIndex;
     // 新日志之前一条日志的任期号
-    private String prevLogTerm;
+    private long prevLogTerm;
     // 要复制的日志条目（为空表示心跳）
     private List<LogEntry> entries;
     // Leader已经提交的最高日志索引

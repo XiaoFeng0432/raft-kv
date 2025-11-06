@@ -6,7 +6,7 @@ import com.xf.raft.core.entity.LogEntry;
  * 状态机接口
  * 将提交的日志应用到系统状态
  */
-public interface StateMachine {
+public interface StateMachine extends LifeCycle{
     // 将日志应用到状态机
     void apply(LogEntry entry);
 

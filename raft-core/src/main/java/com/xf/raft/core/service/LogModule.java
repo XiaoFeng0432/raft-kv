@@ -6,7 +6,7 @@ import com.xf.raft.core.entity.LogEntry;
  * 日志模块
  * 负责日志的写入、读取和删除
  */
-public interface LogModule {
+public interface LogModule extends LifeCycle{
     // 写入日志
     void write(LogEntry entry);
 

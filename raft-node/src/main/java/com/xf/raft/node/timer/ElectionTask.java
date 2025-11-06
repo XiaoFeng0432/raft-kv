@@ -1,4 +1,4 @@
-package com.xf.raft.node.thread;
+package com.xf.raft.node.timer;
 
 public class ElectionTask implements Runnable{
     @Override

@@ -1,4 +1,4 @@
-package com.xf.raft.node;
+package com.xf.raft.node.impl;
 
 import com.xf.raft.core.entity.AppendEntryParam;
 import com.xf.raft.core.entity.AppendEntryResult;

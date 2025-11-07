@@ -10,7 +10,7 @@ import org.rocksdb.RocksDB;
 import org.rocksdb.RocksDBException;
 
 import java.io.File;
-import java.util.concurrent.locks.ReentrantLock;
+
 
 /**
  *
@@ -40,7 +40,7 @@ public class DefaultStateMachine implements StateMachine {
 
         File file = new File(stateMachineDir);
         if(!file.exists()){
-            boolean success = file.mkdir();
+            boolean success = file.mkdirs();
             if(success){
                 log.info("创建状态机目录成功: {}", stateMachineDir);
             }

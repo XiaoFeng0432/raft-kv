@@ -52,7 +52,7 @@ public class DefaultLogModule implements LogModule {
 
         File file = new File(logDir);
         if(!file.exists()){
-            boolean success = file.mkdir();
+            boolean success = file.mkdirs();
             if(success){
                 log.info("创建日志目录成功: {}", logDir);
             }
@@ -62,8 +62,8 @@ public class DefaultLogModule implements LogModule {
             logDb = RocksDB.open(options, logDir);
             log.info("RocksDB 初始化完成, 目录: {}", logDir);
         } catch (RocksDBException e) {
-            log.error("RocksDB 初始化失败");
-            throw new RuntimeException("RocksDB 初始化失败");
+            log.error("RocksDB 初始化失败", e);
+            throw new RuntimeException("RocksDB 初始化失败", e);
         }
     }
 

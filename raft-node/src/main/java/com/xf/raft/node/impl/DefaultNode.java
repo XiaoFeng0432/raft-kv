@@ -2,6 +2,7 @@ package com.xf.raft.node.impl;
 
 import com.xf.raft.core.config.NodeConfig;
 import com.xf.raft.core.entity.*;
+import com.xf.raft.core.service.ClusterMemberChanges;
 import com.xf.raft.core.service.Node;
 import jdk.jfr.DataAmount;
 import lombok.Data;
@@ -9,7 +10,7 @@ import lombok.extern.slf4j.Slf4j;
 
 @Data
 @Slf4j
-public class DefaultNode implements Node {
+public class DefaultNode implements Node, ClusterMemberChanges {
 
     /* 定时器相关 */
     public volatile long electionTime = 15 * 1000; // 选举时间间隔基数
@@ -54,6 +55,16 @@ public class DefaultNode implements Node {
 
     @Override
     public ClientKVAck redirect(ClientKVReq request) {
+        return null;
+    }
+
+    @Override
+    public ClusterResult addPeer(Peer newPeer) {
+        return null;
+    }
+
+    @Override
+    public ClusterResult removePeer(Peer oldPeer) {
         return null;
     }
 }

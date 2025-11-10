@@ -12,7 +12,7 @@ public class DefaultLogModuleTest {
     static DefaultLogModule logModule = DefaultLogModule.getInstance();
 
     @Test
-    public void writeAndReadTest(){
+    public void writeAndReadTest() throws Throwable {
         // 写入日志
         LogEntry entry = LogEntry.builder()
                 .term(1L)
@@ -23,12 +23,15 @@ public class DefaultLogModuleTest {
         // 读取日志
         LogEntry readEntry = logModule.read(entry.getIndex());
         System.out.println("读取到的日志为: " + readEntry);
+        logModule.destroy();
     }
 
     @Test
-    public void removeOnStartIndexTest(){
+    public void removeOnStartIndexTest() throws Throwable {
         // 删除日志
         logModule.removeOnStartIndex(1L);
+        System.out.println("lastIndex: " + logModule.getLastIndex());
+        logModule.destroy();
     }
 
 }

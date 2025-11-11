@@ -1,5 +1,8 @@
 package com.xf.raft.core.entity;
 
+/**
+ * 节点的状态
+ */
 public class NodeStatus {
     public static final int FOLLOWER = 0;
     public static final int CANDIDATE = 1;

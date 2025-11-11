@@ -5,6 +5,9 @@ import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+/**
+ * 集群操作返回结果
+ */
 @Data
 @NoArgsConstructor
 @AllArgsConstructor

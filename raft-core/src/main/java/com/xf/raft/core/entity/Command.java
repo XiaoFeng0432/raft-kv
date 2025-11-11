@@ -6,6 +6,9 @@ import lombok.NoArgsConstructor;
 
 import java.io.Serializable;
 
+/**
+ * 执行的命令
+ */
 @Data
 @NoArgsConstructor
 @AllArgsConstructor

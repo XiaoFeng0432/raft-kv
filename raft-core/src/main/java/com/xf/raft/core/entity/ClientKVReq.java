@@ -5,7 +5,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 /**
- * 客户端的 KV写请求
+ * 客户端的 KV 写请求
  * 客户端向 Raft 节点发送写请求
  */
 @Data

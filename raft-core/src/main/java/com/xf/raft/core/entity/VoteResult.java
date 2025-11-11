@@ -11,6 +11,7 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 @AllArgsConstructor
 public class VoteResult {
+    // 当前节点的任期号
     private long term;
     // 是否同意投票
     private boolean voteGranted;

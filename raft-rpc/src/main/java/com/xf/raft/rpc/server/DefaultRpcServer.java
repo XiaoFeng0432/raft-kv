@@ -6,7 +6,7 @@ import com.xf.raft.core.entity.ClientKVReq;
 import com.xf.raft.core.entity.Peer;
 import com.xf.raft.core.entity.VoteParam;
 import com.xf.raft.core.service.ClusterMemberChanges;
-import com.xf.raft.node.impl.DefaultNode;
+import com.xf.raft.core.service.Node;
 import com.xf.raft.rpc.protocol.Request;
 import com.xf.raft.rpc.protocol.Response;
 import lombok.extern.slf4j.Slf4j;
@@ -17,10 +17,10 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 public class DefaultRpcServer implements RpcServer{
 
-    private final DefaultNode node;
+    private final Node node;
     private final com.alipay.remoting.rpc.RpcServer SERVER;
 
-    public DefaultRpcServer(int port, DefaultNode node) {
+    public DefaultRpcServer(int port, Node node) {
         this.node = node;
         SERVER = new com.alipay.remoting.rpc.RpcServer(port, false, false);
         SERVER.registerUserProcessor(new RaftUserProcessor<Request>() {

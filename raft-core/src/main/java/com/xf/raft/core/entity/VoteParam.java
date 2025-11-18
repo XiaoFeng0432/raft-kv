@@ -1,6 +1,7 @@
 package com.xf.raft.core.entity;
 
 import lombok.AllArgsConstructor;
+import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
@@ -11,6 +12,7 @@ import java.io.Serializable;
  * 如果节点发起选举会广播这个请求
  */
 @Data
+@Builder
 @NoArgsConstructor
 @AllArgsConstructor
 public class VoteParam implements Serializable {

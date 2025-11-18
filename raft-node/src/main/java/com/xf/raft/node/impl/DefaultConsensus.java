@@ -56,10 +56,9 @@ public class DefaultConsensus implements Consensus {
             }
 
             // 检查是否已经投票
-            // 没有投票 或者 正好投票给对方 -- 比较日志大小
+            // 没有投票 或者 正好投票给对方 -> 比较日志大小
             if(node.getVotedFor() == null || node.getVotedFor().equals(param.getCandidateId())){
                 // 对方的日志至少和自己一样新 才会投票给对方
-                //
                 LogEntry lastEntry = node.getLogModule().getLastEntry();
                 if(lastEntry != null){
                     // 对方日志任期号不如自己新

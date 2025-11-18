@@ -12,6 +12,7 @@ target/
 *.iml
 *.ipr
 .idea/
+RocksDB/
 
 ### Eclipse ###
 .apt_generated

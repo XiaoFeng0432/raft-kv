@@ -3,11 +3,15 @@ package com.xf.raft.node.impl;
 import com.xf.raft.core.config.NodeConfig;
 import com.xf.raft.core.entity.*;
 import com.xf.raft.core.service.*;
+import com.xf.raft.node.thread.RaftThreadPool;
 import com.xf.raft.node.timer.ElectionTask;
 import com.xf.raft.node.timer.HeartbeatTask;
 import com.xf.raft.rpc.client.DefaultRpcClient;
 import com.xf.raft.rpc.client.RpcClient;
+import com.xf.raft.rpc.server.DefaultRpcServer;
 import com.xf.raft.rpc.server.RpcServer;
+import com.xf.raft.store.DefaultLogModule;
+import com.xf.raft.store.DefaultStateMachine;
 import jdk.jfr.DataAmount;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
@@ -47,24 +51,87 @@ public class DefaultNode implements Node, ClusterMemberChanges {
     private ElectionTask electionTask; // 选举定时任务
     private HeartbeatTask heartbeatTask; // 心跳定时任务
 
+    public static DefaultNode getInstance() {
+        return DefaultNodeLazyHolder.INSTANCE;
+    }
+
+    private static class DefaultNodeLazyHolder {
+        private static final DefaultNode INSTANCE = new DefaultNode();
+    }
+
+
+    /**
+     * 初始化节点
+     */
     @Override
     public void init() throws Throwable {
+        if(running){
+            return;
+        }
+        running = true;
 
+        // 初始化 RPC
+        rpcClient.init();
+        rpcServer.init();
+
+        // 初始化一致性模块
+        consensus = new DefaultConsensus(this);
+
+        // 初始化定时任务
+        electionTask = new ElectionTask(this);
+        heartbeatTask = new HeartbeatTask(this);
+//        delegate = new ClusterMembershipChangesImpl(this); // 似乎没用到
+
+        // 启动心跳任务
+        RaftThreadPool.scheduleWithFixedDelay(heartbeatTask, 500);
+        // 启动选举任务
+        RaftThreadPool.scheduleAtFixedRate(electionTask, 6000, 500);
+//        RaftThreadPool.execute(replicationFailQueueConsumer);
+
+        // 恢复任期
+        LogEntry entry = logModule.getLastEntry();
+        if(entry != null){
+            currentTerm = entry.getTerm();
+        }
+        log.info("节点 {} 启动成功", peerSet.getSelf().getAddr());
     }
 
+    /**
+     * 销毁节点
+     */
     @Override
     public void destroy() throws Throwable {
-
+        running = false;
+        rpcClient.destroy();
+        rpcServer.destroy();
+        logModule.destroy();
+        stateMachine.destroy();
+        log.info("节点 {} 销毁成功", peerSet.getSelf().getAddr());
     }
 
+    /**
+     * 设置节点配置
+     */
     @Override
     public void setConfig(NodeConfig config) {
-
+        this.nodeConfig = config;
+        logModule = DefaultLogModule.getInstance();
+        stateMachine = DefaultStateMachine.getInstance();
+        peerSet = PeerSet.getInstance();
+        for(String addr : config.getPeerAddrs()){
+            Peer peer = new Peer(addr);
+            peerSet.addPeer(peer);
+            if(addr.equals("localhost:" + config.getPort())){
+                peerSet.setSelf(peer);
+            }
+        }
+        rpcServer = new DefaultRpcServer(config.getPort(), this);
     }
 
     @Override
     public VoteResult handlerRequestVote(VoteParam param) {
-        return null;
+        log.debug("收到投票请求: {}", param);
+        return consensus.requestVote(param);
     }
 
     @Override

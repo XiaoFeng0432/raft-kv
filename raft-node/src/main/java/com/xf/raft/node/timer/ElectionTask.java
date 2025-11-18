@@ -114,6 +114,7 @@ public class ElectionTask implements Runnable{
         CountDownLatch latch = new CountDownLatch(futureList.size());
 
         for(Future<VoteResult> future : futureList){
+            // TODO 是否可以换成execute?
             RaftThreadPool.submit(() -> {
                 try{
                     VoteResult result = future.get(3000, TimeUnit.MILLISECONDS);
@@ -168,6 +169,7 @@ public class ElectionTask implements Runnable{
             node.setVotedFor(null);
 
             // TODO 成为 Leader 的初始化工作
+            node.becomeLeaderToDoThing();
         }
         else{
             node.setVotedFor(null);

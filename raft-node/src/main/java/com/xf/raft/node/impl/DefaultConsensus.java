@@ -70,13 +70,15 @@ public class DefaultConsensus implements Consensus {
                         return new VoteResult(node.getCurrentTerm(), false);
                     }
                 }
-            }
 
-            // 可以给对方投票，节点变为 FOLLOWER
-            node.setStatus(NodeStatus.FOLLOWER);
-            node.setVotedFor(param.getCandidateId());
-            node.getPeerSet().setLeader(new Peer(param.getCandidateId()));
-            node.setCurrentTerm(param.getTerm());
+                // 可以给对方投票，节点变为 FOLLOWER
+                node.setStatus(NodeStatus.FOLLOWER);
+                node.setVotedFor(param.getCandidateId());
+                node.getPeerSet().setLeader(new Peer(param.getCandidateId()));
+                node.setCurrentTerm(param.getTerm());
+
+                return new VoteResult(node.getCurrentTerm(), false);
+            }
 
             return new VoteResult(node.getCurrentTerm(), false);
         } finally {
@@ -84,9 +86,92 @@ public class DefaultConsensus implements Consensus {
         }
     }
 
+    /**
+     * 附加日志 RPC
+     * 如果日志为空就是心跳信息，反之为日志信息
+     *
+     * 接收者实现：
+     * 1. 如果 term < currentTerm 就返回 false
+     * 2. 如果日志在 prevLogIndex 位置处的日志条目的任期号和 prevLogTerm 不匹配，则返回 false
+     * 3. 如果已经存在的日志条目和新的产生冲突（索引值相同但是任期号不同），删除这一条和之后所有的
+     * 4. 附加任何在已有的日志中不存在的条目
+     * 5. 如果 leaderCommit > commitIndex，令 commitIndex 等于 leaderCommit 和新日志条目索引值中较小的一个
+     */
     @Override
     public AppendEntryResult appendEntries(AppendEntryParam param) {
-        // TODO 日志复制
-        return null;
+        AppendEntryResult result = new AppendEntryResult();
+        result.setSuccess(false);
+
+        try{
+            if(!appendLock.tryLock()){
+                return result;
+            }
+
+            // 无论成功失败先设置返回值，也就是将自己的 term 返回给 Leader
+            result.setTerm(node.getCurrentTerm());
+
+            // 如果 term < currentTerm 就返回 false
+            if(param.getTerm() < node.getCurrentTerm()){
+                return result;
+            }
+
+            // 更新心跳和选举时间
+            node.setPreHeartbeatTime(System.currentTimeMillis());
+            node.setPreElectionTime(System.currentTimeMillis());
+            node.getPeerSet().setLeader(new Peer(param.getLeaderId()));
+
+            // 如果对方任期更大，则更新自己任期并变成 FOLLOWER
+            if(param.getTerm() >= node.getCurrentTerm()){
+                log.debug("节点 {} 转化为 {} 的 FOLLOWER", node.getPeerSet().getSelf().getAddr(), param.getLeaderId());
+                node.setCurrentTerm(param.getTerm());
+                node.setStatus(NodeStatus.FOLLOWER);
+            }
+
+            // 如果是心跳信息
+            if(param.getEntries() == null || param.getEntries().isEmpty()){
+                log.debug("节点 {} 接收到 {} 的心跳信息", node.getPeerSet().getSelf().getAddr(), param.getLeaderId());
+
+                // 处理 Leader 已提交但是没有应用到状态机的日志
+                long nextCommit = node.getCommitIndex() + 1;
+
+                // 如果 leaderCommit > commitIndex, 令 commitIndex 等于 leaderCommit 和新日志条目索引值中较小的一个
+                if(param.getLeaderCommit() > node.getCommitIndex()){
+                    // leader 中的日志信息比本地 node 的日志新
+                    int commitIndex = (int) Math.min(node.getLogModule().getLastIndex(), param.getLeaderCommit());
+                    node.setCommitIndex(commitIndex);
+                    node.setLastApplied(commitIndex);
+                }
+
+                // 应用已提交但是未应用的日志
+                while(nextCommit <= node.getCommitIndex()){
+                    node.getStateMachine().apply(node.getLogModule().read(nextCommit));
+                    nextCommit++;
+                }
+
+                result.setSuccess(true);
+                result.setTerm(node.getCurrentTerm());
+                return result;
+            }
+
+            // 如果是日志信息, 进行日志复制
+            // 检查日志一致性 TODO
+            if(node.getLogModule().getLastIndex() != 0 && param.getPrevLogIndex() != 0){
+                LogEntry entry = node.getLogModule().read(param.getPrevLogIndex());
+
+            }
+
+            // 如果已存在的日志条目 和 新的 产生冲突, 删除这一条和之后所有的
+
+            // 附加新日志
+
+            // 更新 commitIndex 并应用日志
+
+            // 应用已提交但是未应用的日志
+
+        }finally {
+            appendLock.unlock();
+        }
+
+        return result;
     }
 }

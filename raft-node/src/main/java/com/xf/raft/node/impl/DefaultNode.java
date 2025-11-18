@@ -12,9 +12,10 @@ import com.xf.raft.rpc.server.DefaultRpcServer;
 import com.xf.raft.rpc.server.RpcServer;
 import com.xf.raft.store.DefaultLogModule;
 import com.xf.raft.store.DefaultStateMachine;
-import jdk.jfr.DataAmount;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
+
+import java.util.Map;
 
 @Data
 @Slf4j
@@ -40,6 +41,10 @@ public class DefaultNode implements Node, ClusterMemberChanges {
     volatile long commitIndex; // 已知的最大的已经被提交的日志条目的索引值
     volatile long lastApplied = 0; // 最后被应用到状态机的日志条目索引值
 
+    /* Leader 上经常改变的 */
+    Map<Peer, Long> nextIndexes; // 对于每一个服务器，需要发送给他的下一个日志条目的索引值
+    Map<Peer, Long> matchIndexes; // 对于每一个服务器，已经复制给他的日志的最高索引值
+
     /* 组件 */
     public NodeConfig nodeConfig; // 配置
     public RpcServer rpcServer; // RPC 服务端
@@ -54,6 +59,8 @@ public class DefaultNode implements Node, ClusterMemberChanges {
     public static DefaultNode getInstance() {
         return DefaultNodeLazyHolder.INSTANCE;
     }
+
+
 
     private static class DefaultNodeLazyHolder {
         private static final DefaultNode INSTANCE = new DefaultNode();
@@ -157,5 +164,8 @@ public class DefaultNode implements Node, ClusterMemberChanges {
     @Override
     public ClusterResult removePeer(Peer oldPeer) {
         return null;
+    }
+
+    public void becomeLeaderToDoThing() {
     }
 }

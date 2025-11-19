@@ -132,7 +132,6 @@ public class DefaultConsensus implements Consensus {
                 log.debug("节点 {} 接收到 {} 的心跳信息", node.getPeerSet().getSelf().getAddr(), param.getLeaderId());
 
                 // 处理 Leader 已提交但是没有应用到状态机的日志
-                long nextCommit = node.getCommitIndex() + 1;
 
                 // 如果 leaderCommit > commitIndex, 令 commitIndex 等于 leaderCommit 和新日志条目索引值中较小的一个
                 if(param.getLeaderCommit() > node.getCommitIndex()){
@@ -141,6 +140,9 @@ public class DefaultConsensus implements Consensus {
                     node.setCommitIndex(commitIndex);
                     node.setLastApplied(commitIndex);
                 }
+
+                // 下一个需要提交的日志的索引（如有）
+                long nextCommit = node.getCommitIndex() + 1;
 
                 // 应用已提交但是未应用的日志
                 while(nextCommit <= node.getCommitIndex()){
@@ -159,7 +161,7 @@ public class DefaultConsensus implements Consensus {
                 LogEntry entry = node.getLogModule().read(param.getPrevLogIndex());
 
                 if(entry != null){
-                    // 检查 term
+                    // 如果日志在 prevLogIndex 处日志的任期号和 prevLogTerm 不匹配，则返回 false
                     if(entry.getTerm() != param.getPrevLogTerm()){
                         log.warn("日志不一致: prevLogIndex={}, 本地term={}, Leader处term={}",
                                 param.getPrevLogIndex(), entry.getTerm(), param.getPrevLogTerm());
@@ -167,12 +169,13 @@ public class DefaultConsensus implements Consensus {
                     }
                 }
                 else{
+                    // index不对, 需要减小 nextIndex 重试
                     log.warn("日志不一致: prevLogIndex={} 处没有日志", param.getPrevLogIndex());
                     return result;
                 }
             }
 
-            // 到这里 prevLogIndex 之前的日志保持一致，但是本地 node 可能有多的日志
+            // 到这里 prevLogIndex 之前的日志保持一致，但是本地 node 可能有多的日志, 可能
             // 如果已存在的日志条目 和 新的 产生冲突, 删除这一条和之后所有的
             LogEntry existLog = node.getLogModule().read(param.getPrevLogIndex() + 1);
             if(existLog != null && existLog.getTerm() != param.getEntries().get(0).getTerm()){

@@ -95,7 +95,7 @@ public class DefaultConsensus implements Consensus {
      * 2. 如果日志在 prevLogIndex 位置处的日志条目的任期号和 prevLogTerm 不匹配，则返回 false
      * 3. 如果已经存在的日志条目和新的产生冲突（索引值相同但是任期号不同），删除这一条和之后所有的
      * 4. 附加任何在已有的日志中不存在的条目
-     * 5. 如果 leaderCommit > commitIndex，令 commitIndex 等于 leaderCommit 和新日志条目索引值中较小的一个
+     * 5. 如果 leaderCommit > commitIndex，令 commitIndex 等于 leaderCommit 和 新日志条目索引值 中较小的一个
      */
     @Override
     public AppendEntryResult appendEntries(AppendEntryParam param) {
@@ -154,24 +154,64 @@ public class DefaultConsensus implements Consensus {
             }
 
             // 如果是日志信息, 进行日志复制
-            // 检查日志一致性 TODO
+            // 检查日志一致性
             if(node.getLogModule().getLastIndex() != 0 && param.getPrevLogIndex() != 0){
                 LogEntry entry = node.getLogModule().read(param.getPrevLogIndex());
 
+                if(entry != null){
+                    // 检查 term
+                    if(entry.getTerm() != param.getPrevLogTerm()){
+                        log.warn("日志不一致: prevLogIndex={}, 本地term={}, Leader处term={}",
+                                param.getPrevLogIndex(), entry.getTerm(), param.getPrevLogTerm());
+                        return result;
+                    }
+                }
+                else{
+                    log.warn("日志不一致: prevLogIndex={} 处没有日志", param.getPrevLogIndex());
+                    return result;
+                }
             }
 
+            // 到这里 prevLogIndex 之前的日志保持一致，但是本地 node 可能有多的日志
             // 如果已存在的日志条目 和 新的 产生冲突, 删除这一条和之后所有的
+            LogEntry existLog = node.getLogModule().read(param.getPrevLogIndex() + 1);
+            if(existLog != null && existLog.getTerm() != param.getEntries().get(0).getTerm()){
+                log.warn("删除冲突日志: startIndex={}", param.getPrevLogIndex() + 1);
+                node.getLogModule().removeOnStartIndex(param.getPrevLogIndex() + 1);
+            }
+            else if(existLog != null){
+                // 日志一致，已存在
+                result.setSuccess(true);
+                return result;
+            }
 
             // 附加新日志
+            for(LogEntry entry : param.getEntries()){
+                node.getLogModule().write(entry);
+                log.debug("写入日志成功: term={}, index={}", entry.getTerm(), entry.getIndex());
+            }
+            result.setSuccess(true);
 
             // 更新 commitIndex 并应用日志
+            if(param.getLeaderCommit() > node.getCommitIndex()){
+                int commitIndex = (int) Math.min(node.getLogModule().getLastIndex(), param.getLeaderCommit());
+                node.setCommitIndex(commitIndex);
+                node.setLastApplied(commitIndex);
+            }
 
             // 应用已提交但是未应用的日志
+            long nextCommit = node.getCommitIndex() + 1;
+            while(nextCommit <= node.getLogModule().getLastIndex()){
+                node.getStateMachine().apply(node.getLogModule().read(nextCommit));
+                nextCommit++;
+            }
 
+            result.setTerm(node.getCurrentTerm());
+            result.setSuccess(true);
+
+            return result;
         }finally {
             appendLock.unlock();
         }
-
-        return result;
     }
 }

@@ -168,7 +168,6 @@ public class ElectionTask implements Runnable{
             node.getPeerSet().setLeader(node.getPeerSet().getSelf());
             node.setVotedFor(null);
 
-            // TODO 成为 Leader 的初始化工作
             node.becomeLeaderToDoThing();
         }
         else{

@@ -16,6 +16,7 @@ import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 @Data
 @Slf4j
@@ -59,8 +60,6 @@ public class DefaultNode implements Node, ClusterMemberChanges {
     public static DefaultNode getInstance() {
         return DefaultNodeLazyHolder.INSTANCE;
     }
-
-
 
     private static class DefaultNodeLazyHolder {
         private static final DefaultNode INSTANCE = new DefaultNode();
@@ -143,7 +142,10 @@ public class DefaultNode implements Node, ClusterMemberChanges {
 
     @Override
     public AppendEntryResult handlerAppendEntries(AppendEntryParam param) {
-        return null;
+        if(param.getEntries() != null && !param.getEntries().isEmpty()){
+            log.debug("收到来自 {} 的附加日志请求: size={}", param.getLeaderId(), param.getEntries().size());
+        }
+        return consensus.appendEntries(param);
     }
 
     @Override
@@ -167,5 +169,14 @@ public class DefaultNode implements Node, ClusterMemberChanges {
     }
 
     public void becomeLeaderToDoThing() {
+        log.info("初始化 Leader 状态");
+
+        nextIndexes = new ConcurrentHashMap<>();
+        matchIndexes = new ConcurrentHashMap<>();
+
+        for(Peer peer : peerSet.getPeersWithoutSelf()){
+            nextIndexes.put(peer, logModule.getLastIndex() + 1);
+            matchIndexes.put(peer, 0L);
+        }
     }
 }

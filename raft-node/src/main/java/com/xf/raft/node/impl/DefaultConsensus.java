@@ -59,23 +59,19 @@ public class DefaultConsensus implements Consensus {
             // 没有投票/正好投票给对方 -> 比较日志大小
             if(node.getVotedFor() == null || node.getVotedFor().equals(param.getCandidateId())){
                 // 对方的日志至少和自己一样新 才会投票给对方
-                LogEntry lastEntry = node.getLogModule().getLastEntry();
-                if(lastEntry != null){
-                    // 对方日志任期号不如自己新
-                    if(lastEntry.getTerm() > param.getLastLogTerm()){
-                        return new VoteResult(node.getCurrentTerm(), false);
-                    }
-                    // 对方日志索引比自己小
-                    if(lastEntry.getIndex() > param.getLastLogIndex()){
-                        return new VoteResult(node.getCurrentTerm(), false);
-                    }
+                if(!isLogUpToDate(param.getLastLogTerm(), param.getLastLogIndex())){
+                    log.info("拒绝投票给 {}: 候选人日志不够新", param.getCandidateId());
+                    return new VoteResult(node.getCurrentTerm(), false);
                 }
 
                 // 可以给对方投票，节点变为 FOLLOWER
+                log.info("节点 {} 投票给 {}", node.getPeerSet().getSelf().getAddr(), param.getCandidateId());
                 node.setStatus(NodeStatus.FOLLOWER);
                 node.setVotedFor(param.getCandidateId());
-                node.getPeerSet().setLeader(new Peer(param.getCandidateId()));
-                node.setCurrentTerm(param.getTerm());
+
+                // TODO setLeader 什么时候设置？
+//                node.getPeerSet().setLeader(new Peer(param.getCandidateId()));
+//                node.setCurrentTerm(param.getTerm());
 
                 return new VoteResult(node.getCurrentTerm(), true);
             }
@@ -84,6 +80,32 @@ public class DefaultConsensus implements Consensus {
         } finally {
             voteLock.unlock();
         }
+    }
+
+    /**
+     * 判断候选人的日志是否至少和本节点一样新
+     * @param candidateLastLogTerm 候选人最后日志的任期
+     * @param candidateLastLogIndex 候选人最后日志的索引
+     * @return true 表示候选人日志至少和本节点一样新
+     */
+    private boolean isLogUpToDate(long candidateLastLogTerm, long candidateLastLogIndex) {
+        LogEntry lastEntry = node.getLogModule().getLastEntry();
+
+        // 本节点没有日志，候选人的日志一定够新
+        if(lastEntry == null){
+            return true;
+        }
+
+        long myLastTerm = lastEntry.getTerm();
+        long myLastIndex = lastEntry.getIndex();
+
+        // 1. 先比较任期号：任期号大的更新
+        if(candidateLastLogTerm != myLastTerm){
+            return candidateLastLogTerm > myLastTerm;
+        }
+
+        // 2. 任期号相同，比较索引：索引大的更新
+        return candidateLastLogIndex >= myLastIndex;
     }
 
     /**

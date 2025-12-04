@@ -77,7 +77,7 @@ public class DefaultNode implements Node, ClusterMemberChanges {
      */
     @Override
     public void init() throws Throwable {
-        if(running){
+        if (running) {
             return;
         }
         running = true;
@@ -102,7 +102,7 @@ public class DefaultNode implements Node, ClusterMemberChanges {
 
         // 恢复任期
         LogEntry entry = logModule.getLastEntry();
-        if(entry != null){
+        if (entry != null) {
             currentTerm = entry.getTerm();
         }
         log.info("节点 {} 启动成功", peerSet.getSelf().getAddr());
@@ -130,10 +130,10 @@ public class DefaultNode implements Node, ClusterMemberChanges {
         logModule = DefaultLogModule.getInstance();
         stateMachine = DefaultStateMachine.getInstance();
         peerSet = PeerSet.getInstance();
-        for(String addr : config.getPeerAddrs()){
+        for (String addr : config.getPeerAddrs()) {
             Peer peer = new Peer(addr);
             peerSet.addPeer(peer);
-            if(addr.equals("localhost:" + config.getPort())){
+            if (addr.equals("localhost:" + config.getPort())) {
                 peerSet.setSelf(peer);
             }
         }
@@ -148,7 +148,7 @@ public class DefaultNode implements Node, ClusterMemberChanges {
 
     @Override
     public AppendEntryResult handlerAppendEntries(AppendEntryParam param) {
-        if(param.getEntries() != null && !param.getEntries().isEmpty()){
+        if (param.getEntries() != null && !param.getEntries().isEmpty()) {
             log.debug("收到来自 {} 的附加日志请求: size={}", param.getLeaderId(), param.getEntries().size());
         }
         return consensus.appendEntries(param);
@@ -157,9 +157,9 @@ public class DefaultNode implements Node, ClusterMemberChanges {
     /**
      * 处理客户端的键值请求
      * 该方法根据当前节点的角色以及请求类型执行不同的处理逻辑：
-     *   如果当前节点不是 Leader，则将请求重定向给 Leader 节点
-     *   如果是 GET 请求，则直接从状态机中读取数据并返回
-     *   如果是写操作 PUT/DELETE，则先写入本地日志，并异步复制到其他节点，在多数节点确认后提交日志并应用到状态机
+     * 如果当前节点不是 Leader，则将请求重定向给 Leader 节点
+     * 如果是 GET 请求，则直接从状态机中读取数据并返回
+     * 如果是写操作 PUT/DELETE，则先写入本地日志，并异步复制到其他节点，在多数节点确认后提交日志并应用到状态机
      */
     @Override
     public ClientKVAck handlerClientRequest(ClientKVReq request) {
@@ -167,15 +167,15 @@ public class DefaultNode implements Node, ClusterMemberChanges {
                 request.getOperation(), request.getKey(), request.getValue());
 
         // 如果不是 Leader 则重定向
-        if(status != NodeStatus.LEADER){
+        if (status != NodeStatus.LEADER) {
             log.debug("当前节点 {} 不是 Leader, 重定向请求", peerSet.getSelf().getAddr());
             return redirect(request);
         }
 
         // 处理 GET 请求
-        if(request.getOperation().equals(ClientKVReq.GET)){
+        if (request.getOperation().equals(ClientKVReq.GET)) {
             LogEntry entry = stateMachine.get(request.getKey());
-            if(entry != null){
+            if (entry != null) {
                 return new ClientKVAck(entry);
             }
             return new ClientKVAck(null);
@@ -195,19 +195,18 @@ public class DefaultNode implements Node, ClusterMemberChanges {
         AtomicInteger successCount = new AtomicInteger(0);
         List<Future<Boolean>> futureList = new ArrayList<>();
 
-        for(Peer peer : peerSet.getPeersWithoutSelf()){
+        for (Peer peer : peerSet.getPeersWithoutSelf()) {
             futureList.add(replication(peer, logEntry));
         }
 
         // 等待复制结果
         CountDownLatch latch = new CountDownLatch(futureList.size());
 
-
-        for(Future<Boolean> future : futureList){
+        for (Future<Boolean> future : futureList) {
             RaftThreadPool.execute(() -> {
-                try{
+                try {
                     Boolean result = future.get(4000, TimeUnit.MILLISECONDS);
-                    if(result){
+                    if (result) {
                         successCount.incrementAndGet();
                     }
                 } catch (Exception e) {
@@ -230,37 +229,45 @@ public class DefaultNode implements Node, ClusterMemberChanges {
 
         // Leader 决定哪些日志可以提交
         List<Long> matchIndexList = new ArrayList<>(matchIndexes.values());
+        matchIndexList.add(logModule.getLastIndex());
 
-        int mid = 0;
-        if(matchIndexList.size() >= 2){
-            Collections.sort(matchIndexList);
-            mid = matchIndexList.size() / 2;
-        }
-        Long N = matchIndexList.get(mid);
-        // N 必须是新的, 不能回退
-        if(N > commitIndex){
-            LogEntry entry = logModule.read(N);
-            // 只能提交当前任期的日志
-            if(entry != null && entry.getTerm() == currentTerm){
-                commitIndex = N;
+        int majority = peerSet.getPeers().size() / 2 + 1;
+        Collections.sort(matchIndexList, Collections.reverseOrder());
+
+        // 找到满足多数派且属于当前任期的最大 N
+        for (Long N : matchIndexList) {
+            if (N <= commitIndex) break;
+
+            // 统计有多少服务器的 matchIndex >= N
+            int count = 1; // 节点本身
+            for (Long peerMatch : matchIndexes.values()) {
+                if (peerMatch >= N) count++;
+            }
+
+            if (count >= majority) {
+                LogEntry entry = logModule.read(N);
+                // 关键：只能提交当前任期的日志
+                if (entry != null && entry.getTerm() == currentTerm) {
+                    commitIndex = N;
+                    break;
+                }
             }
         }
 
-        // 判断是否复制成功 TODO commitIndex问题
-        if(successCount.get() >= peerCount / 2){
-            // 更新 commitIndex 并且应用到状态机
-            commitIndex = logEntry.getIndex();
+        // 3. 将日志应用到状态机的判断改为基于 commitIndex
+        if (logEntry.getIndex() <= commitIndex) {
+            // 仅应用已提交的日志
             stateMachine.apply(logEntry);
-            lastApplied = commitIndex;
+            lastApplied = logEntry.getIndex();
             log.info("日志应用到状态机成功: logEntry={}", logEntry);
             return ClientKVAck.ok();
-        }
-        else{
-            // 复制失败 回滚
+        } else {
+            // 未提交则回滚
             logModule.removeOnStartIndex(logEntry.getIndex());
             log.info("日志复制失败, 回滚: index={}", logEntry.getIndex());
             return ClientKVAck.fail();
         }
+
     }
 
     /**
@@ -271,19 +278,24 @@ public class DefaultNode implements Node, ClusterMemberChanges {
             long begin = System.currentTimeMillis();
             long end = begin;
 
-            while(end - begin <= 20 * 1000L){
+            while (end - begin <= 20 * 1000L) {
                 // 得到需要复制的日志
                 List<LogEntry> entries = new ArrayList<>();
                 Long nextIndex = nextIndexes.get(peer);
 
-                if(nextIndex <= entry.getIndex()){
-                    for(long i = nextIndex; i <= entry.getIndex(); i++){
+                if(nextIndex == null){
+                    nextIndex = logModule.getLastIndex() + 1;
+                    nextIndexes.put(peer, nextIndex);
+                }
+
+                if (nextIndex <= entry.getIndex()) {
+                    for (long i = nextIndex; i <= entry.getIndex(); i++) {
                         LogEntry e = logModule.read(i);
-                        if(e != null){
+                        if (e != null) {
                             entries.add(e);
                         }
                     }
-                } else{
+                } else {
                     entries.add(entry);
                 }
 
@@ -292,7 +304,7 @@ public class DefaultNode implements Node, ClusterMemberChanges {
                 AppendEntryParam param = AppendEntryParam.builder()
                         .term(currentTerm)
                         .serverId(peer.getAddr())
-                        .leaderId(peerSet.getLeader().getAddr())
+                        .leaderId(peerSet.getSelf().getAddr())
                         .prevLogTerm(prev.getTerm())
                         .prevLogIndex(prev.getIndex())
                         .entries(entries)
@@ -304,29 +316,30 @@ public class DefaultNode implements Node, ClusterMemberChanges {
                         .obj(param)
                         .url(peer.getAddr())
                         .build();
-                try{
+
+                try {
                     AppendEntryResult result = rpcClient.send(request);
-                    if(result == null){
+                    if (result == null) {
                         return false;
                     }
 
-                    if(result.isSuccess()){
+                    if (result.isSuccess()) {
                         // 复制成功
                         nextIndexes.put(peer, entry.getIndex() + 1);
                         matchIndexes.put(peer, entry.getIndex());
-                    } else{
+                        return true;
+                    } else {
                         // 复制失败
-                        if(result.getTerm() > currentTerm){
+                        if (result.getTerm() > currentTerm) {
                             // 发现更高的任期, 转成 FOLLOWER
                             log.debug("节点 {} 附加日志过程中发现 {} 具有更高任期 term={}, 转成 Follower",
                                     peerSet.getSelf().getAddr(), peer.getAddr(), result.getTerm());
                             status = NodeStatus.FOLLOWER;
                             currentTerm = result.getTerm();
                             return false;
-                        }
-                        else{
+                        } else {
                             // 减小 nextIndex 重试
-                            if(nextIndex == 0L){
+                            if (nextIndex == 0L) {
                                 nextIndex = 1L;
                             }
                             nextIndexes.put(peer, nextIndex - 1);
@@ -336,7 +349,7 @@ public class DefaultNode implements Node, ClusterMemberChanges {
 
                     end = System.currentTimeMillis();
 
-                }catch (Exception e){
+                } catch (Exception e) {
                     log.warn("日志复制请求失败: {}", e.getMessage());
                 }
             }
@@ -347,7 +360,7 @@ public class DefaultNode implements Node, ClusterMemberChanges {
 
     private LogEntry getPreLog(LogEntry entry) {
         LogEntry read = logModule.read(entry.getIndex() - 1);
-        if(read == null){
+        if (read == null) {
             log.debug("前一条日志不存在: logEntry={}", entry);
             return LogEntry.builder()
                     .term(0)
@@ -392,7 +405,7 @@ public class DefaultNode implements Node, ClusterMemberChanges {
         nextIndexes = new ConcurrentHashMap<>();
         matchIndexes = new ConcurrentHashMap<>();
 
-        for(Peer peer : peerSet.getPeersWithoutSelf()){
+        for (Peer peer : peerSet.getPeersWithoutSelf()) {
             nextIndexes.put(peer, logModule.getLastIndex() + 1);
             matchIndexes.put(peer, 0L);
         }

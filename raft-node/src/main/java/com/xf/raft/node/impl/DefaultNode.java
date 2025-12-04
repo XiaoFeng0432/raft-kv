@@ -40,9 +40,30 @@ public class DefaultNode implements Node, ClusterMemberChanges {
     volatile boolean running = false; // 运行标志
 
     /* 所有服务器上持久存在的 */
-    volatile long currentTerm = 0; // 服务器最后一次知道的任期号 初始化为 0
-    volatile String votedFor; // 节点当前任期内投给了哪个候选人 ID
+//    volatile long currentTerm = 0; // 服务器最后一次知道的任期号 初始化为 0
+//    volatile String votedFor; // 节点当前任期内投给了哪个候选人 ID
     LogModule logModule; // 日志模块
+    StatusStore statusStore; // 持久化currentTerm和votedFor
+
+
+    // 通过 statusStore 访问
+    public long getCurrentTerm() {
+        return statusStore.getCurrentTerm();
+    }
+
+    public void setCurrentTerm(long term) {
+        statusStore.setCurrentTerm(term);
+    }
+
+
+    public String getVotedFor() {
+        return statusStore.getVotedFor();
+    }
+
+    public void setVotedFor(String candidateId) {
+        statusStore.setVotedFor(candidateId);
+    }
+
 
     /* 所有服务器上经常改变的 */
     volatile long commitIndex; // 已知的最大的已经被提交的日志条目的索引值
@@ -82,6 +103,8 @@ public class DefaultNode implements Node, ClusterMemberChanges {
         }
         running = true;
 
+        statusStore = DefaultStatusStore.getInstance();
+
         // 初始化 RPC
         rpcClient.init();
         rpcServer.init();
@@ -101,11 +124,10 @@ public class DefaultNode implements Node, ClusterMemberChanges {
 //        RaftThreadPool.execute(replicationFailQueueConsumer);
 
         // 恢复任期
-        LogEntry entry = logModule.getLastEntry();
-        if (entry != null) {
-            currentTerm = entry.getTerm();
-        }
-        log.info("节点 {} 启动成功", peerSet.getSelf().getAddr());
+        log.info("节点 {} 启动成功, 恢复 term={}, votedFor={}",
+                peerSet.getSelf().getAddr(),
+                getCurrentTerm(),
+                getVotedFor());
     }
 
     /**
@@ -118,6 +140,7 @@ public class DefaultNode implements Node, ClusterMemberChanges {
         rpcServer.destroy();
         logModule.destroy();
         stateMachine.destroy();
+        statusStore.destroy();
         log.info("节点 {} 销毁成功", peerSet.getSelf().getAddr());
     }
 
@@ -184,7 +207,7 @@ public class DefaultNode implements Node, ClusterMemberChanges {
         // 处理 PUT/DELETE 请求
         LogEntry logEntry = LogEntry.builder()
                 .command(new Command(request.getKey(), request.getValue()))
-                .term(currentTerm)
+                .term(getCurrentTerm())
                 .build();
 
         // 写入本地日志
@@ -232,7 +255,7 @@ public class DefaultNode implements Node, ClusterMemberChanges {
         matchIndexList.add(logModule.getLastIndex());
 
         int majority = peerSet.getPeers().size() / 2 + 1;
-        Collections.sort(matchIndexList, Collections.reverseOrder());
+        matchIndexList.sort(Collections.reverseOrder());
 
         // 找到满足多数派且属于当前任期的最大 N
         for (Long N : matchIndexList) {
@@ -247,7 +270,7 @@ public class DefaultNode implements Node, ClusterMemberChanges {
             if (count >= majority) {
                 LogEntry entry = logModule.read(N);
                 // 关键：只能提交当前任期的日志
-                if (entry != null && entry.getTerm() == currentTerm) {
+                if (entry != null && entry.getTerm() == getCurrentTerm()) {
                     commitIndex = N;
                     break;
                 }
@@ -302,7 +325,7 @@ public class DefaultNode implements Node, ClusterMemberChanges {
                 LogEntry prev = getPreLog(entries.get(0));
 
                 AppendEntryParam param = AppendEntryParam.builder()
-                        .term(currentTerm)
+                        .term(getCurrentTerm())
                         .serverId(peer.getAddr())
                         .leaderId(peerSet.getSelf().getAddr())
                         .prevLogTerm(prev.getTerm())
@@ -330,12 +353,12 @@ public class DefaultNode implements Node, ClusterMemberChanges {
                         return true;
                     } else {
                         // 复制失败
-                        if (result.getTerm() > currentTerm) {
+                        if (result.getTerm() > getCurrentTerm()) {
                             // 发现更高的任期, 转成 FOLLOWER
                             log.debug("节点 {} 附加日志过程中发现 {} 具有更高任期 term={}, 转成 Follower",
                                     peerSet.getSelf().getAddr(), peer.getAddr(), result.getTerm());
                             status = NodeStatus.FOLLOWER;
-                            currentTerm = result.getTerm();
+                            setCurrentTerm(result.getTerm());
                             return false;
                         } else {
                             // 减小 nextIndex 重试

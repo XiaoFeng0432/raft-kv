@@ -158,19 +158,11 @@ public class DefaultConsensus implements Consensus {
                 // 如果 leaderCommit > commitIndex, 令 commitIndex 等于 leaderCommit 和新日志条目索引值中较小的一个
                 if(param.getLeaderCommit() > node.getCommitIndex()){
                     // leader 中的日志信息比本地 node 的日志新
-                    int commitIndex = (int) Math.min(node.getLogModule().getLastIndex(), param.getLeaderCommit());
+                    long commitIndex = Math.min(node.getLogModule().getLastIndex(), param.getLeaderCommit());
                     node.setCommitIndex(commitIndex);
-                    node.setLastApplied(commitIndex);
                 }
 
-                // 下一个需要提交的日志的索引（如有）
-                long nextCommit = node.getCommitIndex() + 1;
-
-                // 应用已提交但是未应用的日志
-                while(nextCommit <= node.getCommitIndex()){
-                    node.getStateMachine().apply(node.getLogModule().read(nextCommit));
-                    nextCommit++;
-                }
+                applyLogs();
 
                 result.setSuccess(true);
                 result.setTerm(node.getCurrentTerm());
@@ -182,22 +174,21 @@ public class DefaultConsensus implements Consensus {
             if(node.getLogModule().getLastIndex() != 0 && param.getPrevLogIndex() != 0){
                 LogEntry entry = node.getLogModule().read(param.getPrevLogIndex());
 
-                if(entry != null){
-                    // 如果日志在 prevLogIndex 处日志的任期号和 prevLogTerm 不匹配，则返回 false
-                    if(entry.getTerm() != param.getPrevLogTerm()){
-                        log.warn("日志不一致: prevLogIndex={}, 本地term={}, Leader处term={}",
-                                param.getPrevLogIndex(), entry.getTerm(), param.getPrevLogTerm());
-                        return result;
-                    }
-                }
-                else{
+                if(entry == null){
                     // index不对, 需要减小 nextIndex 重试
                     log.warn("日志不一致: prevLogIndex={} 处没有日志", param.getPrevLogIndex());
                     return result;
                 }
+
+                // 如果日志在 prevLogIndex 处日志的任期号和 prevLogTerm 不匹配，则返回 false
+                if(entry.getTerm() != param.getPrevLogTerm()){
+                    log.warn("日志不一致: prevLogIndex={}, 本地term={}, Leader处term={}",
+                            param.getPrevLogIndex(), entry.getTerm(), param.getPrevLogTerm());
+                    return result;
+                }
             }
 
-            // 到这里 prevLogIndex 之前的日志保持一致，但是本地 node 可能有多的日志, 可能
+            // 到这里 prevLogIndex 之前的日志保持一致，但是本地 node 可能有多的日志
             // 如果已存在的日志条目 和 新的 产生冲突, 删除这一条和之后所有的
             LogEntry existLog = node.getLogModule().read(param.getPrevLogIndex() + 1);
             if(existLog != null && existLog.getTerm() != param.getEntries().get(0).getTerm()){
@@ -219,17 +210,11 @@ public class DefaultConsensus implements Consensus {
 
             // 更新 commitIndex 并应用日志
             if(param.getLeaderCommit() > node.getCommitIndex()){
-                int commitIndex = (int) Math.min(node.getLogModule().getLastIndex(), param.getLeaderCommit());
+                long commitIndex = Math.min(node.getLogModule().getLastIndex(), param.getLeaderCommit());
                 node.setCommitIndex(commitIndex);
-                node.setLastApplied(commitIndex);
             }
 
-            // 应用已提交但是未应用的日志
-            long nextCommit = node.getCommitIndex() + 1;
-            while(nextCommit <= node.getLogModule().getLastIndex()){
-                node.getStateMachine().apply(node.getLogModule().read(nextCommit));
-                nextCommit++;
-            }
+            applyLogs();
 
             result.setTerm(node.getCurrentTerm());
             result.setSuccess(true);
@@ -237,6 +222,26 @@ public class DefaultConsensus implements Consensus {
             return result;
         }finally {
             appendLock.unlock();
+        }
+    }
+
+    /**
+     * 应用未提交的日志
+     * 如果 commitIndex > lastApplied, 递增lastApplied, 提交日志
+     */
+    private void applyLogs(){
+        while(node.getLastApplied() < node.getCommitIndex()){
+            long nextApply = node.getLastApplied() + 1;
+            LogEntry entry = node.getLogModule().read(nextApply);
+
+            if(entry != null){
+                node.getStateMachine().apply(entry);
+                node.setLastApplied(nextApply);
+                log.debug("应用日志到状态机: term={}, index={}", entry.getTerm(), nextApply);
+            } else{
+                log.error("致命错误: 日志index={}不存在，但是commitIndex={}", nextApply, node.getCommitIndex());
+                break;
+            }
         }
     }
 }

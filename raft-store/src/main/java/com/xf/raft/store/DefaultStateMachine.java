@@ -24,7 +24,7 @@ public class DefaultStateMachine implements StateMachine {
     public RocksDB machineDB;
 
     public DefaultStateMachine() {
-        dbDir = "./RocksDB/" + System.getProperty("serverPort", "default");
+        dbDir = "../RocksDB/" + System.getProperty("serverPort", "default");
         stateMachineDir = dbDir + "/stateMachine";
         initStateMachineDB();
     }

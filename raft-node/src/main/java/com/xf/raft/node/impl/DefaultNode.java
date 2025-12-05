@@ -12,6 +12,7 @@ import com.xf.raft.rpc.protocol.Request;
 import com.xf.raft.rpc.server.DefaultRpcServer;
 import com.xf.raft.rpc.server.RpcServer;
 import com.xf.raft.store.DefaultLogModule;
+import com.xf.raft.store.DefaultMetaStore;
 import com.xf.raft.store.DefaultStateMachine;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
@@ -43,25 +44,25 @@ public class DefaultNode implements Node, ClusterMemberChanges {
 //    volatile long currentTerm = 0; // 服务器最后一次知道的任期号 初始化为 0
 //    volatile String votedFor; // 节点当前任期内投给了哪个候选人 ID
     LogModule logModule; // 日志模块
-    StatusStore statusStore; // 持久化currentTerm和votedFor
+    MetaStore metaStore; // 持久化currentTerm和votedFor
 
 
     // 通过 statusStore 访问
     public long getCurrentTerm() {
-        return statusStore.getCurrentTerm();
+        return metaStore.getCurrentTerm();
     }
 
     public void setCurrentTerm(long term) {
-        statusStore.setCurrentTerm(term);
+        metaStore.setCurrentTerm(term);
     }
 
 
     public String getVotedFor() {
-        return statusStore.getVotedFor();
+        return metaStore.getVotedFor();
     }
 
     public void setVotedFor(String candidateId) {
-        statusStore.setVotedFor(candidateId);
+        metaStore.setVotedFor(candidateId);
     }
 
 
@@ -103,7 +104,7 @@ public class DefaultNode implements Node, ClusterMemberChanges {
         }
         running = true;
 
-        statusStore = DefaultStatusStore.getInstance();
+        metaStore = DefaultMetaStore.getInstance();
 
         // 初始化 RPC
         rpcClient.init();
@@ -140,7 +141,7 @@ public class DefaultNode implements Node, ClusterMemberChanges {
         rpcServer.destroy();
         logModule.destroy();
         stateMachine.destroy();
-        statusStore.destroy();
+        metaStore.destroy();
         log.info("节点 {} 销毁成功", peerSet.getSelf().getAddr());
     }
 

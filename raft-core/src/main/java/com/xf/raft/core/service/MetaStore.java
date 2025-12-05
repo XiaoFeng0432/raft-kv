@@ -4,7 +4,7 @@ package com.xf.raft.core.service;
 /**
  * 负责持久化 currentTerm 和 votedFor
  */
-public interface StatusStore {
+public interface MetaStore {
     void setCurrentTerm(long term);
 
     long getCurrentTerm();

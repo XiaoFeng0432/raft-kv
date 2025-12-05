@@ -33,7 +33,7 @@ public class DefaultLogModule implements LogModule {
 
     public DefaultLogModule() {
         if(dbDir == null){
-            dbDir = "./RocksDB/" + System.getProperty("serverPort", "default");
+            dbDir = "../RocksDB/" + System.getProperty("serverPort", "default");
         }
         if(logDir == null){
             logDir = dbDir + "/log";

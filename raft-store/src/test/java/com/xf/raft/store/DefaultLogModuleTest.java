@@ -29,7 +29,7 @@ public class DefaultLogModuleTest {
     @Test
     public void removeOnStartIndexTest() throws Throwable {
         // 删除日志
-        logModule.removeOnStartIndex(1L);
+        logModule.removeOnStartIndex(0L);
         System.out.println("lastIndex: " + logModule.getLastIndex());
         logModule.destroy();
     }

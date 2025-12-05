@@ -1,6 +1,6 @@
-package com.xf.raft.node.impl;
+package com.xf.raft.store;
 
-import com.xf.raft.core.service.StatusStore;
+import com.xf.raft.core.service.MetaStore;
 import lombok.extern.slf4j.Slf4j;
 import org.rocksdb.Options;
 import org.rocksdb.RocksDB;
@@ -14,7 +14,7 @@ import java.util.concurrent.locks.ReentrantLock;
  * 论文要求：Updated on stable storage before responding to RPCs
  */
 @Slf4j
-public class DefaultStatusStore implements StatusStore {
+public class DefaultMetaStore implements MetaStore {
 
     private String dbDir;
     private String metaDir;
@@ -25,9 +25,9 @@ public class DefaultStatusStore implements StatusStore {
 
     private final ReentrantLock lock = new ReentrantLock();
 
-    public DefaultStatusStore() {
+    public DefaultMetaStore() {
         if(dbDir == null){
-            dbDir = "./RocksDB/" + System.getProperty("serverPort", "default");
+            dbDir = "../RocksDB/" + System.getProperty("serverPort", "default");
         }
         if(metaDir == null){
             metaDir = dbDir + "/meta";
@@ -58,12 +58,12 @@ public class DefaultStatusStore implements StatusStore {
         }
     }
 
-    public static DefaultStatusStore getInstance(){
+    public static DefaultMetaStore getInstance(){
         return DefaultMetaStoreLazyHolder.INSTANCE;
     }
 
     private static class DefaultMetaStoreLazyHolder {
-        private static final DefaultStatusStore INSTANCE = new DefaultStatusStore();
+        private static final DefaultMetaStore INSTANCE = new DefaultMetaStore();
     }
 
     /**

@@ -35,6 +35,11 @@
             <artifactId>bolt</artifactId>
         </dependency>
 
+        <dependency>
+            <groupId>com.caucho</groupId>
+            <artifactId>hessian</artifactId>
+        </dependency>
+
         <!-- Fastjson 序列化 -->
         <dependency>
             <groupId>com.alibaba.fastjson2</groupId>

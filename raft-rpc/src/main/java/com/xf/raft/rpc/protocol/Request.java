@@ -24,6 +24,7 @@ public class Request implements Serializable {
     public static final int CHANGE_CONFIG_REMOVE = 4;
 
     // 请求类型
+    @Builder.Default
     private int cmd = -1;
     // 请求参数
     private Object obj;

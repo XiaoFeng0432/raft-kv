@@ -4,11 +4,12 @@ import com.xf.raft.core.service.MetaStore;
 import org.junit.jupiter.api.Test;
 
 public class MetaStoreTest {
+    MetaStore metaStore = new DefaultMetaStore();
+
 
     // 测试 metaStore 能否成功存储状态
     @Test
     public void set() throws Exception {
-        MetaStore metaStore = DefaultMetaStore.getInstance();
         metaStore.setCurrentTerm(1);
         metaStore.setVotedFor("1");
         metaStore.destroy();
@@ -16,7 +17,6 @@ public class MetaStoreTest {
 
     @Test
     public void get() throws Exception {
-        MetaStore metaStore = DefaultMetaStore.getInstance();
         System.out.println(metaStore.getCurrentTerm());
         System.out.println(metaStore.getVotedFor());
         metaStore.destroy();

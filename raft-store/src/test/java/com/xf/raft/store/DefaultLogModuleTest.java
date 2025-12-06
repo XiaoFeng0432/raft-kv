@@ -7,9 +7,9 @@ import org.junit.jupiter.api.Test;
 public class DefaultLogModuleTest {
 
     static {
-        System.setProperty("serverPort", "test-8080");
+        System.setProperty("serverPort", "8777");
     }
-    static DefaultLogModule logModule = DefaultLogModule.getInstance();
+    DefaultLogModule logModule = new DefaultLogModule();
 
     @Test
     public void writeAndReadTest() throws Throwable {

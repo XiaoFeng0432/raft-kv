@@ -15,7 +15,7 @@
         <module>raft-rpc</module>
         <module>raft-store</module>
         <module>raft-node</module>
-        <module>raft-demo</module>
+<!--        <module>raft-demo</module>-->
     </modules>
 
     <!-- ===== 项目基础属性 ===== -->
@@ -31,6 +31,7 @@
         <junit.version>5.10.2</junit.version>
 
         <sofa.bolt.version>1.6.4</sofa.bolt.version>
+        <hessian.version>4.0.66</hessian.version>
         <fastjson2.version>2.0.53</fastjson2.version>
         <guava.version>32.1.3-jre</guava.version>
     </properties>
@@ -99,6 +100,12 @@
                         <artifactId>slf4j-api</artifactId>
                     </exclusion>
                 </exclusions>
+            </dependency>
+
+            <dependency>
+                <groupId>com.caucho</groupId>
+                <artifactId>hessian</artifactId>
+                <version>${hessian.version}</version>
             </dependency>
 
             <!-- Logback，一种Slf4j的实现 -->

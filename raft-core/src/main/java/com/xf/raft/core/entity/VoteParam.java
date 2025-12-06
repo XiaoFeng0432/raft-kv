@@ -16,6 +16,8 @@ import java.io.Serializable;
 @NoArgsConstructor
 @AllArgsConstructor
 public class VoteParam implements Serializable {
+    private static final long serialVersionUID = 1L;
+
     // 候选人任期号
     private long term;
     // 被请求者id

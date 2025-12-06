@@ -118,6 +118,9 @@ public class DefaultNode implements Node, ClusterMemberChanges {
         heartbeatTask = new HeartbeatTask(this);
 //        delegate = new ClusterMembershipChangesImpl(this); // 似乎没用到
 
+        preElectionTime = System.currentTimeMillis();
+        preHeartbeatTime = System.currentTimeMillis();
+
         // 启动心跳任务
         RaftThreadPool.scheduleWithFixedDelay(heartbeatTask, 500);
         // 启动选举任务

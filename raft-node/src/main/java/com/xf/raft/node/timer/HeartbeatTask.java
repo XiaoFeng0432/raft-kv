@@ -65,17 +65,16 @@ public class HeartbeatTask implements Runnable{
                         return;
                     }
 
-                    long term = result.getTerm();
+                    long resultTerm = result.getTerm();
                     // 如果发现更高的任期, 转化为 FOLLOWER
-                    if(term > node.getCurrentTerm()){
+                    if(resultTerm > node.getCurrentTerm()){
                         log.debug("节点 {} 当前任期: {}, 发现更高任期: {}, 转化为 FOLLOWER",
-                                node.getPeerSet().getSelf().getAddr(),
-                                node.getCurrentTerm(),
-                                term
-                        );
-                        node.setCurrentTerm(term);
-                        node.setVotedFor(null);
-                        node.setStatus(NodeStatus.FOLLOWER);
+                                node.getPeerSet().getSelf().getAddr(), node.getCurrentTerm(), resultTerm);
+                        synchronized (node){
+                            node.setCurrentTerm(resultTerm);
+                            node.setStatus(NodeStatus.FOLLOWER);
+                            node.setVotedFor(null);
+                        }
                     }
                 }catch (Exception e){
                     log.error("发送心跳异常", e);

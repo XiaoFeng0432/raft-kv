@@ -28,12 +28,12 @@ public class DefaultConsensus implements Consensus {
      */
     @Override
     public VoteResult requestVote(VoteParam param) {
-        try {
-            // 尝试获取锁
-            if (!voteLock.tryLock()) {
-                return new VoteResult(node.getCurrentTerm(), false);
-            }
+        // 尝试获取锁
+        if (!voteLock.tryLock()) {
+            return new VoteResult(node.getCurrentTerm(), false);
+        }
 
+        try {
             // 如果对方的任期不如自己新，不投票
             if(param.getTerm() < node.getCurrentTerm()){
                 return new VoteResult(node.getCurrentTerm(), false);
@@ -49,8 +49,9 @@ public class DefaultConsensus implements Consensus {
 
             // 发现对方任期更高，更新自己任期
             if(param.getTerm() > node.getCurrentTerm()){
+                log.debug("节点 {} 当前任期: {}, 发现更高任期: {}, 转化为 FOLLOWER",
+                        node.getPeerSet().getSelf().getAddr(), node.getCurrentTerm(), param.getTerm());
                 node.setCurrentTerm(param.getTerm());
-                // 状态切换为 FOLLOWER
                 node.setStatus(NodeStatus.FOLLOWER);
                 node.setVotedFor(null);
             }
@@ -143,10 +144,12 @@ public class DefaultConsensus implements Consensus {
             node.getPeerSet().setLeader(new Peer(param.getLeaderId()));
 
             // 如果对方任期更大，则更新自己任期并变成 FOLLOWER
-            if(param.getTerm() >= node.getCurrentTerm()){
-                log.debug("节点 {} 转化为 {} 的 FOLLOWER", node.getPeerSet().getSelf().getAddr(), param.getLeaderId());
+            if(param.getTerm() > node.getCurrentTerm()){
+                log.debug("节点 {} 当前任期: {}, 发现更高任期: {}, 转化为 FOLLOWER",
+                        node.getPeerSet().getSelf().getAddr(), node.getCurrentTerm(), param.getTerm());
                 node.setCurrentTerm(param.getTerm());
                 node.setStatus(NodeStatus.FOLLOWER);
+                node.setVotedFor(null);
             }
 
             // 如果是心跳信息
@@ -154,7 +157,6 @@ public class DefaultConsensus implements Consensus {
                 log.debug("节点 {} 接收到 {} 的心跳信息", node.getPeerSet().getSelf().getAddr(), param.getLeaderId());
 
                 // 处理 Leader 已提交但是没有应用到状态机的日志
-
                 // 如果 leaderCommit > commitIndex, 令 commitIndex 等于 leaderCommit 和新日志条目索引值中较小的一个
                 if(param.getLeaderCommit() > node.getCommitIndex()){
                     // leader 中的日志信息比本地 node 的日志新

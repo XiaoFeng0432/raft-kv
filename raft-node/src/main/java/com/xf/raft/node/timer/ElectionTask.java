@@ -82,6 +82,7 @@ public class ElectionTask implements Runnable{
                     RaftThreadPool.submit(() -> {
                         LogEntry entry = node.getLogModule().getLastEntry();
                         long lastLogTerm = entry == null ? 0 : entry.getTerm();
+                        long lastLogIndex = entry == null ? 0 : entry.getIndex();
 
                         // 请求参数
                         VoteParam param = VoteParam.builder()
@@ -89,7 +90,7 @@ public class ElectionTask implements Runnable{
                                 .serverId(peer.getAddr())
                                 .candidateId(node.getPeerSet().getSelf().getAddr())
                                 .lastLogTerm(lastLogTerm)
-                                .lastLogIndex(node.getLogModule().getLastIndex())
+                                .lastLogIndex(lastLogIndex)
                                 .build();
 
                         // 请求体
@@ -130,7 +131,13 @@ public class ElectionTask implements Runnable{
                         // 更新自己的任期
                         long resultTerm = result.getTerm();
                         if(resultTerm > node.getCurrentTerm()){
-                            node.setCurrentTerm(resultTerm);
+                            log.debug("节点 {} 当前任期: {}, 发现更高任期: {}, 转化为 FOLLOWER",
+                                    node.getPeerSet().getSelf().getAddr(), node.getCurrentTerm(), resultTerm);
+                            synchronized (node){
+                                node.setCurrentTerm(resultTerm);
+                                node.setStatus(NodeStatus.FOLLOWER);
+                                node.setVotedFor(null);
+                            }
                         }
                     }
                     return 0;
@@ -149,19 +156,17 @@ public class ElectionTask implements Runnable{
             log.warn("选举任务被中断");
         }
 
-        int voteCount = successCount.get();
-        log.info("节点 {} 获得 {} 票，共需要 {} 票",
-                node.getPeerSet().getSelf().getAddr(),
-                voteCount,
-                peers.size() / 2
-        );
-
         // 如果在投票期间，有其他服务器发送 appendEntry，就可能变成 follower
         if (node.getStatus() == NodeStatus.FOLLOWER) {
             return;
         }
 
-        if(voteCount >= peers.size() / 2){
+        int voteCount = successCount.get() + 1; // 还有自己的投票
+        int requiredCount = (peers.size() + 1) / 2 + 1;
+        log.info("节点 {} 获得 {} 票，共需要 {} 票",
+                node.getPeerSet().getSelf().getAddr(), voteCount, requiredCount);
+
+        if(voteCount >= requiredCount){
             // 成为 Leader
             log.info("节点 {} 成为 Leader", node.getPeerSet().getSelf().getAddr());
             node.setStatus(NodeStatus.LEADER);

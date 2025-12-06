@@ -11,6 +11,17 @@ public class RaftNodeStarter {
     mvn clean package "-Dmaven.test.skip=true"
     java -jar -DserverPort=8777 raft-node/target/raft-node-1.0-SNAPSHOT-jar-with-dependencies.jar
     */
+
+    private static final String logo =
+            " ███████       ██     ████████ ██████████       ██   ██ ██      ██\n" +
+            " ██    ██     ████    ██           ██           ██  ██  ██      ██\n" +
+            " ██    ██    ██  ██   ██           ██           ██ ██   ██      ██\n" +
+            " ███████    ██    ██  ███████      ██     █████ ████     ██    ██ \n" +
+            " ██   ██   ██████████ ██           ██           ██ ██     ██  ██  \n" +
+            " ██    ██  ██      ██ ██           ██           ██  ██     ████   \n" +
+            " ██     ██ ██      ██ ██           ██           ██   ██     ██    \n" +
+            "                                                                  \n";
+
     public static void main(String[] args) throws Throwable {
         // 从系统属性获取端口
         String portStr = System.getProperty("serverPort", "8777");
@@ -30,6 +41,7 @@ public class RaftNodeStarter {
         node.setConfig(config);
         node.init();
 
+        System.out.println(logo);
 
         // 添加关闭钩子
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {

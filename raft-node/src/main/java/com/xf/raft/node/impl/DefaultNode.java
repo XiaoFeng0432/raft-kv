@@ -205,7 +205,7 @@ public class DefaultNode implements Node, ClusterMemberChanges {
 
         // 如果不是 Leader 则重定向
         if (status != NodeStatus.LEADER) {
-            log.debug("当前节点 {} 不是 Leader, 重定向请求", peerSet.getSelf().getAddr());
+            log.debug("当前节点 {} 不是 Leader, 重定向请求到 {}", peerSet.getSelf().getAddr(), peerSet.getLeader().getAddr());
             return redirect(request);
         }
 

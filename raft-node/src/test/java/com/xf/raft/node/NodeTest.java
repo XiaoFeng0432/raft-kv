@@ -17,7 +17,6 @@ public class NodeTest {
     // 测试 GET PUT DELETE 操作
     @Test
     public void UserClient() throws Throwable {
-//        DefaultRpcClient client = new DefaultRpcClient();
         client.init();
 
         ClientKVAck res = put("name", "raft-kv");

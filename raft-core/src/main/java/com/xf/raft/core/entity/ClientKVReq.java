@@ -5,6 +5,8 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.io.Serializable;
+
 /**
  * 客户端的 KV 写请求
  * 客户端向 Raft 节点发送写请求
@@ -13,7 +15,8 @@ import lombok.NoArgsConstructor;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class ClientKVReq {
+public class ClientKVReq implements Serializable {
+    private static final long serialVersionUID = 1L;
 
     public static final String GET = "GET";
     public static final String PUT = "PUT";

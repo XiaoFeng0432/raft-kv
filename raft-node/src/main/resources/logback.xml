@@ -1,0 +1,20 @@
+<configuration>
+    <!-- 控制台输出 -->
+    <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <pattern>%d{HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n</pattern>
+        </encoder>
+    </appender>
+
+    <!-- 你的 Raft 代码：DEBUG 级别 -->
+    <logger name="com.xf.raft" level="DEBUG"/>
+
+    <!-- Bolt/Netty 相关包：只显示 INFO 及以上（屏蔽 DEBUG） -->
+    <logger name="io.netty" level="INFO"/>
+    <logger name="com.alipay.remoting" level="INFO"/>
+
+    <!-- 根日志级别设为 INFO 或 WARN -->
+    <root level="INFO">
+        <appender-ref ref="CONSOLE"/>
+    </root>
+</configuration>

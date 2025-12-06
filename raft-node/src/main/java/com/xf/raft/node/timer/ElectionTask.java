@@ -4,14 +4,12 @@ import com.xf.raft.core.entity.*;
 import com.xf.raft.node.impl.DefaultNode;
 import com.xf.raft.node.thread.RaftThreadPool;
 import com.xf.raft.rpc.protocol.Request;
-import io.netty.util.internal.ThreadLocalRandom;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Future;
-import java.util.concurrent.FutureTask;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -35,9 +33,7 @@ public class ElectionTask implements Runnable{
         }
 
         // 基于 Raft 的随机时间 解决冲突
-        node.setElectionTime(node.getElectionTime() + ThreadLocalRandom.current().nextInt(50));
         long current = System.currentTimeMillis();
-
         // 选举超时检查
         if(current - node.getPreElectionTime() < node.getElectionTime()){
             return;
@@ -55,21 +51,28 @@ public class ElectionTask implements Runnable{
      * 4. 超时的话重新开始一次选举
      */
     private void startElection() {
-        // 变为候选人
-        node.setStatus(NodeStatus.CANDIDATE);
-        // 更新选举时间
-        node.setPreElectionTime(System.currentTimeMillis() + ThreadLocalRandom.current().nextInt(200) + 150);
-        // 增加任期号
-        node.setCurrentTerm(node.getCurrentTerm() + 1);
 
-        log.debug("节点 {} 成为候选人, 开始选举Leader, 任期号: {}, 最后日志: {}",
-                node.getPeerSet().getSelf().getAddr(),
-                node.getCurrentTerm(),
-                node.getLogModule().getLastEntry()
-        );
+        // 自增term 和 给自己投票 需要是原子性操作
+        synchronized (node){
+            // 变为候选人
+            node.setStatus(NodeStatus.CANDIDATE);
+            // 更新选举时间
+            node.setPreElectionTime(System.currentTimeMillis());
+            // 增加任期号
+            node.setCurrentTerm(node.getCurrentTerm() + 1);
+            // 重置选举时间
+            node.resetElectionTime();
 
-        // 给自己投票
-        node.setVotedFor(node.getPeerSet().getSelf().getAddr());
+            log.debug("节点 {} 成为候选人, 开始选举Leader, 任期号: {}, 最后日志: {}",
+                    node.getPeerSet().getSelf().getAddr(),
+                    node.getCurrentTerm(),
+                    node.getLogModule().getLastEntry()
+            );
+
+            // 给自己投票
+            node.setVotedFor(node.getPeerSet().getSelf().getAddr());
+        }
+
 
         // 发送投票请求
         List<Peer> peers = node.getPeerSet().getPeersWithoutSelf();

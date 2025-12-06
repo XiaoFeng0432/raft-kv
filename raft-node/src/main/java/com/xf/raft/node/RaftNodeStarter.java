@@ -30,7 +30,6 @@ public class RaftNodeStarter {
         node.setConfig(config);
         node.init();
 
-        System.out.println("Raft 节点启动成功: port=" + port);
 
         // 添加关闭钩子
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {

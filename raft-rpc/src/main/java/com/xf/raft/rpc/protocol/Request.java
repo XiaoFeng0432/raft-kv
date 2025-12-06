@@ -13,19 +13,18 @@ import java.io.Serializable;
 @AllArgsConstructor
 public class Request implements Serializable {
     // 请求投票
-    public static final int VOTE = 0;
+    public static final String VOTE = "VOTE";
     // 附加日志
-    public static final int APPEND_ENTRIES = 1;
+    public static final String APPEND_ENTRIES = "APPEND_ENTRIES";
     // 客户端请求
-    public static final int CLIENT_REQUEST = 2;
+    public static final String CLIENT_REQUEST = "CLIENT_REQUEST";
     // 配置变更 -- 添加节点
-    public static final int CHANGE_CONFIG_ADD = 3;
+    public static final String CHANGE_CONFIG_ADD = "CHANGE_CONFIG_ADD";
     // 配置变更 -- 删除节点
-    public static final int CHANGE_CONFIG_REMOVE = 4;
+    public static final String CHANGE_CONFIG_REMOVE = "CHANGE_CONFIG_REMOVE";
 
     // 请求类型
-    @Builder.Default
-    private int cmd = -1;
+    private String cmd;
     // 请求参数
     private Object obj;
     // 请求地址

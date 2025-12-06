@@ -69,6 +69,8 @@ public class DefaultConsensus implements Consensus {
                 log.info("节点 {} 投票给 {}", node.getPeerSet().getSelf().getAddr(), param.getCandidateId());
                 node.setStatus(NodeStatus.FOLLOWER);
                 node.setVotedFor(param.getCandidateId());
+                // 投票结束以后重置上一次选举时间，防止不必要的选举
+                node.setPreElectionTime(System.currentTimeMillis());
 
                 // TODO setLeader 什么时候设置？
 //                node.getPeerSet().setLeader(new Peer(param.getCandidateId()));

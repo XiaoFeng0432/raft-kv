@@ -27,7 +27,7 @@ public class DefaultMetaStore implements MetaStore {
 
     public DefaultMetaStore() {
         if(dbDir == null){
-            dbDir = "../RocksDB/" + System.getProperty("serverPort", "default");
+            dbDir = "./RocksDB/" + System.getProperty("serverPort", "default");
         }
         if(metaDir == null){
             metaDir = dbDir + "/meta";

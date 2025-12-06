@@ -14,6 +14,7 @@ import com.xf.raft.rpc.server.RpcServer;
 import com.xf.raft.store.DefaultLogModule;
 import com.xf.raft.store.DefaultMetaStore;
 import com.xf.raft.store.DefaultStateMachine;
+import io.netty.util.internal.ThreadLocalRandom;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 
@@ -30,10 +31,18 @@ import java.util.concurrent.atomic.AtomicInteger;
 public class DefaultNode implements Node, ClusterMemberChanges {
 
     /* 定时器相关 */
-    public volatile long electionTime = 15 * 1000; // 选举时间间隔
-    public final long heartbeatInterval = 5 * 100; // 心跳间隔
-    public volatile long preElectionTime = 0; // 上一次选举时间
-    public volatile long preHeartbeatTime = 0; // 上一次心跳时间戳
+    public final long electionBaseTime = 5 * 1000; // 基本超时时间
+    private final long randomRange = 1000; // 随机超时时间
+    public volatile long electionTime; // 选举时间间隔 = electionBaseTime + [0, randomRange]
+    public final long heartbeatInterval = 2000; // 心跳间隔
+    public volatile long preElectionTime; // 上一次选举时间
+    public volatile long preHeartbeatTime; // 上一次心跳时间戳
+
+    public void resetElectionTime(){
+        electionTime = electionBaseTime + ThreadLocalRandom.current().nextLong(randomRange);
+        preElectionTime = System.currentTimeMillis();
+        log.debug("节点 {} 重置选举超时时间: {}ms", peerSet.getSelf().getAddr(), electionTime);
+    }
 
     /* 节点状态 */
     public volatile int status = NodeStatus.FOLLOWER; // 节点当前状态
@@ -44,7 +53,7 @@ public class DefaultNode implements Node, ClusterMemberChanges {
 //    volatile long currentTerm = 0; // 服务器最后一次知道的任期号 初始化为 0
 //    volatile String votedFor; // 节点当前任期内投给了哪个候选人 ID
     LogModule logModule; // 日志模块
-    MetaStore metaStore; // 持久化currentTerm和votedFor
+    MetaStore metaStore; // 持久化 currentTerm 和 votedFor
 
 
     // 通过 statusStore 访问
@@ -118,17 +127,18 @@ public class DefaultNode implements Node, ClusterMemberChanges {
         heartbeatTask = new HeartbeatTask(this);
 //        delegate = new ClusterMembershipChangesImpl(this); // 似乎没用到
 
+        resetElectionTime();
         preElectionTime = System.currentTimeMillis();
         preHeartbeatTime = System.currentTimeMillis();
 
         // 启动心跳任务
-        RaftThreadPool.scheduleWithFixedDelay(heartbeatTask, 500);
+        RaftThreadPool.scheduleWithFixedDelay(heartbeatTask, 1000);
         // 启动选举任务
-        RaftThreadPool.scheduleAtFixedRate(electionTask, 6000, 500);
+        RaftThreadPool.scheduleAtFixedRate(electionTask, 3000, 1000);
 //        RaftThreadPool.execute(replicationFailQueueConsumer);
 
         // 恢复任期
-        log.info("节点 {} 启动成功, 恢复 term={}, votedFor={}",
+        log.info("Raft 节点 {} 启动成功, 恢复 term={}, votedFor={}\n\n",
                 peerSet.getSelf().getAddr(),
                 getCurrentTerm(),
                 getVotedFor());
@@ -145,7 +155,7 @@ public class DefaultNode implements Node, ClusterMemberChanges {
         logModule.destroy();
         stateMachine.destroy();
         metaStore.destroy();
-        log.info("节点 {} 销毁成功", peerSet.getSelf().getAddr());
+        log.info("Raft 节点 {} 销毁成功", peerSet.getSelf().getAddr());
     }
 
     /**

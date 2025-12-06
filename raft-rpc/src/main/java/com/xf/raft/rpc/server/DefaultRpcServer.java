@@ -45,7 +45,7 @@ public class DefaultRpcServer implements RpcServer{
 
     @Override
     public Response<?> handlerRequest(Request request) {
-        log.info("收到 Rpc 请求: cmd={}, url={}", request.getCmd(), request.getUrl());
+        log.info("收到 Rpc 请求: cmd={}", request.getCmd());
         switch (request.getCmd()){
             case Request.VOTE:
                 return new Response<>(

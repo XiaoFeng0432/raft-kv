@@ -33,7 +33,7 @@ public class HeartbeatTask implements Runnable{
         }
 
         // 发送心跳
-        log.debug("========== Leader 发送心跳 ==========");
+        log.debug("==================== Leader 发送心跳 ====================");
         List<Peer> peers = node.getPeerSet().getPeersWithoutSelf();
         for(Peer peer : peers){
             log.debug("Peer {} nextIndex={}", peer.getAddr(), node.getNextIndexes().get(peer));

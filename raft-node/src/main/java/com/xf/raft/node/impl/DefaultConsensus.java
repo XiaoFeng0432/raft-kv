@@ -54,6 +54,7 @@ public class DefaultConsensus implements Consensus {
                 node.setCurrentTerm(param.getTerm());
                 node.setStatus(NodeStatus.FOLLOWER);
                 node.setVotedFor(null);
+                node.resetElectionTime();
             }
 
             // 检查是否已经投票
@@ -152,6 +153,7 @@ public class DefaultConsensus implements Consensus {
                 node.setCurrentTerm(param.getTerm());
                 node.setStatus(NodeStatus.FOLLOWER);
                 node.setVotedFor(null);
+                node.resetElectionTime();
             }
 
             // 如果是心跳信息

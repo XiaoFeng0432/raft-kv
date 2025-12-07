@@ -393,6 +393,8 @@ public class DefaultNode implements Node, ClusterMemberChanges {
                                 setVotedFor(null);
                                 setCurrentTerm(result.getTerm());
 
+                                resetElectionTime();
+
                                 // 删除该节点作为 Leader 的时候写入的日志
                                 logModule.removeOnStartIndex(commitIndex + 1);
 

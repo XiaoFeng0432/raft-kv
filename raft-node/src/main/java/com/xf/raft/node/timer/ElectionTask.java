@@ -140,6 +140,7 @@ public class ElectionTask implements Runnable{
                                 node.setCurrentTerm(resultTerm);
                                 node.setStatus(NodeStatus.FOLLOWER);
                                 node.setVotedFor(null);
+                                node.resetElectionTime();
                             }
                         }
                     }

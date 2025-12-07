@@ -260,9 +260,14 @@ public class DefaultNode implements Node, ClusterMemberChanges {
             log.error("等待复制结果失败: {}", e.getMessage());
         }
 
-        int peerCount = peerSet.getPeersWithoutSelf().size();
+        if (status != NodeStatus.LEADER || getCurrentTerm() != logEntry.getTerm()){
+            log.warn("领导权已变更，放弃提交");
+            return ClientKVAck.fail();
+        }
+
+        int total = peerSet.getPeers().size();
         log.info("日志复制结果: success={}, total={}, need={}",
-                successCount.get(), peerCount, peerCount / 2);
+                successCount.get() + 1, total, total / 2 + 1);
 
         // Leader 决定哪些日志可以提交
         List<Long> matchIndexList = new ArrayList<>(matchIndexes.values());
@@ -271,39 +276,51 @@ public class DefaultNode implements Node, ClusterMemberChanges {
         int majority = peerSet.getPeers().size() / 2 + 1;
         matchIndexList.sort(Collections.reverseOrder());
 
-        // 找到满足多数派且属于当前任期的最大 N
-        for (Long N : matchIndexList) {
-            if (N <= commitIndex) break;
+        synchronized (this){
+            // 找到满足多数派且属于当前任期的最大 N
+            for (Long N : matchIndexList) {
+                if (N <= commitIndex) break;
 
-            // 统计有多少服务器的 matchIndex >= N
-            int count = 1; // 节点本身
-            for (Long peerMatch : matchIndexes.values()) {
-                if (peerMatch >= N) count++;
-            }
+                // 统计有多少服务器的 matchIndex >= N
+                int count = 1; // 节点本身
+                for (Long peerMatch : matchIndexes.values()) {
+                    if (peerMatch >= N) count++;
+                }
 
-            if (count >= majority) {
                 LogEntry entry = logModule.read(N);
+                if(entry == null){
+                    log.error("致命错误：日志不存在: index={}", N);
+                    return ClientKVAck.fail();
+                }
                 // 关键：只能提交当前任期的日志
-                if (entry != null && entry.getTerm() == getCurrentTerm()) {
+                if (count >= majority && entry.getTerm() == getCurrentTerm()) {
                     commitIndex = N;
                     break;
                 }
             }
+
+            applyLogs();
         }
 
-        // 3. 将日志应用到状态机的判断改为基于 commitIndex
         if (logEntry.getIndex() <= commitIndex) {
-            // 仅应用已提交的日志
-            stateMachine.apply(logEntry);
-            lastApplied = logEntry.getIndex();
-            log.info("日志应用到状态机成功: logEntry={}", logEntry);
             return ClientKVAck.ok();
         } else {
-            // 未提交则回滚
-            logModule.removeOnStartIndex(logEntry.getIndex());
-            log.info("日志复制失败, 回滚: index={}", logEntry.getIndex());
-            return ClientKVAck.fail();
+            log.warn("日志未提交: index={}", logEntry.getIndex());
+            return ClientKVAck.fail(); // 必须让客户端重试
         }
+
+//        // 3. 将日志应用到状态机的判断改为基于 commitIndex
+////        if (logEntry.getIndex() <= commitIndex) {
+////            // 仅应用已提交的日志
+////            stateMachine.apply(logEntry);
+////            lastApplied = logEntry.getIndex();
+////            return ClientKVAck.ok();
+////        } else {
+////            // 未提交则回滚
+//////            logModule.removeOnStartIndex(logEntry.getIndex());
+//////            log.info("日志复制失败, 回滚: index={}", logEntry.getIndex());
+////            return ClientKVAck.fail();
+////        }
 
     }
 
@@ -368,12 +385,22 @@ public class DefaultNode implements Node, ClusterMemberChanges {
                     } else {
                         // 复制失败
                         if (result.getTerm() > getCurrentTerm()) {
-                            // 发现更高的任期, 转成 FOLLOWER
-                            log.debug("节点 {} 附加日志过程中发现 {} 具有更高任期 term={}, 转成 Follower",
-                                    peerSet.getSelf().getAddr(), peer.getAddr(), result.getTerm());
-                            status = NodeStatus.FOLLOWER;
-                            setCurrentTerm(result.getTerm());
-                            return false;
+                            synchronized (this) {
+                                // 发现更高的任期, 转成 FOLLOWER
+                                log.debug("节点 {} 附加日志过程中发现 {} 具有更高任期 term={}, 转成 Follower",
+                                        peerSet.getSelf().getAddr(), peer.getAddr(), result.getTerm());
+                                status = NodeStatus.FOLLOWER;
+                                setVotedFor(null);
+                                setCurrentTerm(result.getTerm());
+
+                                // 删除该节点作为 Leader 的时候写入的日志
+                                logModule.removeOnStartIndex(commitIndex + 1);
+
+                                // 清除 Leader 状态
+                                nextIndexes = null;
+                                matchIndexes = null;
+                                return false;
+                            }
                         } else {
                             // 减小 nextIndex 重试
                             if (nextIndex == 0L) {
@@ -395,6 +422,10 @@ public class DefaultNode implements Node, ClusterMemberChanges {
         });
     }
 
+    /**
+     * 得到 entry 的上一条日志
+     * @param entry
+     */
     private LogEntry getPreLog(LogEntry entry) {
         LogEntry read = logModule.read(entry.getIndex() - 1);
         if (read == null) {
@@ -442,9 +473,30 @@ public class DefaultNode implements Node, ClusterMemberChanges {
         nextIndexes = new ConcurrentHashMap<>();
         matchIndexes = new ConcurrentHashMap<>();
 
+        Long lastIndex = logModule.getLastIndex();
         for (Peer peer : peerSet.getPeersWithoutSelf()) {
-            nextIndexes.put(peer, logModule.getLastIndex() + 1);
+            nextIndexes.put(peer, lastIndex + 1);
             matchIndexes.put(peer, 0L);
+        }
+    }
+
+    /**
+     * 应用未提交的日志
+     * 如果 commitIndex > lastApplied, 递增 lastApplied, 提交日志
+     */
+    public void applyLogs(){
+        while(lastApplied < commitIndex){
+            long nextApply = lastApplied + 1;
+            LogEntry entry = logModule.read(nextApply);
+
+            if(entry != null){
+                stateMachine.apply(entry);
+                lastApplied = nextApply;
+                log.debug("应用日志到状态机: term={}, index={}", entry.getTerm(), nextApply);
+            } else{
+                log.error("致命错误: 日志index={}不存在，但是commitIndex={}", nextApply, commitIndex);
+                break;
+            }
         }
     }
 }

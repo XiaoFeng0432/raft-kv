@@ -166,7 +166,7 @@ public class DefaultConsensus implements Consensus {
                     node.setCommitIndex(commitIndex);
                 }
 
-                applyLogs();
+                node.applyLogs();
 
                 result.setSuccess(true);
                 result.setTerm(node.getCurrentTerm());
@@ -218,7 +218,7 @@ public class DefaultConsensus implements Consensus {
                 node.setCommitIndex(commitIndex);
             }
 
-            applyLogs();
+            node.applyLogs();
 
             result.setTerm(node.getCurrentTerm());
             result.setSuccess(true);
@@ -229,23 +229,5 @@ public class DefaultConsensus implements Consensus {
         }
     }
 
-    /**
-     * 应用未提交的日志
-     * 如果 commitIndex > lastApplied, 递增lastApplied, 提交日志
-     */
-    private void applyLogs(){
-        while(node.getLastApplied() < node.getCommitIndex()){
-            long nextApply = node.getLastApplied() + 1;
-            LogEntry entry = node.getLogModule().read(nextApply);
 
-            if(entry != null){
-                node.getStateMachine().apply(entry);
-                node.setLastApplied(nextApply);
-                log.debug("应用日志到状态机: term={}, index={}", entry.getTerm(), nextApply);
-            } else{
-                log.error("致命错误: 日志index={}不存在，但是commitIndex={}", nextApply, node.getCommitIndex());
-                break;
-            }
-        }
-    }
 }

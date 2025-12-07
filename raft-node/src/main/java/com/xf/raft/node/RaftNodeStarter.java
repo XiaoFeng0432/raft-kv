@@ -24,13 +24,15 @@ public class RaftNodeStarter {
 
     public static void main(String[] args) throws Throwable {
         // 从系统属性获取端口
-        String portStr = System.getProperty("serverPort", "8777");
+        String portStr = System.getProperty("serverPort", "8779");
         int port = Integer.parseInt(portStr);
 
         // 配置节点
         NodeConfig config = new NodeConfig();
         config.setPort(port);
         config.setPeerAddrs(Arrays.asList(
+                "localhost:8775",
+                "localhost:8776",
                 "localhost:8777",
                 "localhost:8778",
                 "localhost:8779"

@@ -1,6 +1,7 @@
 package com.xf.raft.rpc.client;
 
 import com.alipay.remoting.exception.RemotingException;
+import com.xf.raft.core.exception.RaftRemotingException;
 import com.xf.raft.rpc.protocol.Request;
 import com.xf.raft.rpc.protocol.Response;
 import lombok.extern.slf4j.Slf4j;
@@ -37,7 +38,7 @@ public class DefaultRpcClient implements RpcClient {
             return response.getResult();
         } catch (RemotingException e) {
             log.error("Rpc 调用失败, url:{}, error:{}",request.getUrl(), e.getMessage());
-            throw new RuntimeException("Rpc远程调用异常", e);
+            throw new RaftRemotingException("Rpc远程调用异常", e);
         } catch (InterruptedException e) {
             log.error("Rpc 调用被中断, url:{}, error:{}",request.getUrl(), e.getMessage());
             Thread.currentThread().interrupt();

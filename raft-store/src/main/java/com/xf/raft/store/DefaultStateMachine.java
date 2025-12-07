@@ -4,6 +4,7 @@ import com.alibaba.fastjson2.JSON;
 import com.xf.raft.core.entity.Command;
 import com.xf.raft.core.entity.LogEntry;
 import com.xf.raft.core.service.StateMachine;
+import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 import org.rocksdb.Options;
 import org.rocksdb.RocksDB;
@@ -13,8 +14,9 @@ import java.io.File;
 
 
 /**
- *
+ * 状态机
  */
+@Data
 @Slf4j
 public class DefaultStateMachine implements StateMachine {
 

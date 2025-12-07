@@ -1,6 +1,7 @@
 package com.xf.raft.store;
 
 import com.xf.raft.core.service.MetaStore;
+import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 import org.rocksdb.Options;
 import org.rocksdb.RocksDB;
@@ -13,6 +14,7 @@ import java.util.concurrent.locks.ReentrantLock;
  * 持久化存储 Raft 元数据 (currentTerm, votedFor)
  * 论文要求：Updated on stable storage before responding to RPCs
  */
+@Data
 @Slf4j
 public class DefaultMetaStore implements MetaStore {
 
@@ -27,7 +29,7 @@ public class DefaultMetaStore implements MetaStore {
 
     public DefaultMetaStore() {
         if(dbDir == null){
-            dbDir = "./RocksDB/" + System.getProperty("serverPort", "default");
+            dbDir = "../RocksDB/" + System.getProperty("serverPort", "default");
         }
         if(metaDir == null){
             metaDir = dbDir + "/meta";

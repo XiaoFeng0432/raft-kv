@@ -13,7 +13,6 @@ public interface MetaStore {
 
     String getVotedFor();
 
-    void updateTermAndVotedFor(long term, String votedFor);
 
     void destroy() throws Exception;
 }

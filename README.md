@@ -37,7 +37,7 @@ mvn clean package "-Dmaven.test.skip=true"
 
 ### 启动集群
 
-在不同端口启动 3 个节点：
+在不同端口启动 3 个节点（在 `raft-kv` 目录中）：
 
 ```bash
 # 终端 1

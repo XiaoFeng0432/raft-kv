@@ -102,7 +102,7 @@ public class DefaultStateMachine implements StateMachine {
             byte[] key = command.getKey().getBytes();
             byte[] value = JSON.toJSONBytes(entry);
             machineDB.put(key, value);
-            log.info("应用日志到状态机成功, key={}, value={}, index={}",key, command.getValue(), entry.getIndex());
+            log.info("应用日志到状态机成功, key={}, value={}, index={}", command.getKey(), command.getValue(), entry.getIndex());
         } catch (RocksDBException e) {
             log.error("应用日志到状态机失败", e);
             throw new RuntimeException("应用日志到状态机失败", e);

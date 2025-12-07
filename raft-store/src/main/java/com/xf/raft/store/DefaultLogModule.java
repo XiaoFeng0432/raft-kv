@@ -190,7 +190,7 @@ public class DefaultLogModule implements LogModule {
     public LogEntry getLastEntry() {
         Long lastIndex = getLastIndex();
 
-        if(lastIndex == -1){
+        if(lastIndex == 0L){
             return null;
         }
 
@@ -206,7 +206,7 @@ public class DefaultLogModule implements LogModule {
         try {
             byte[] value = logDb.get(LAST_INDEX_KEY);
             if(value == null){
-                return -1L;
+                return 0L;
             }
             return Long.valueOf(new String(value));
         } catch (RocksDBException e) {

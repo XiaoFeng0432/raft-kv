@@ -56,7 +56,7 @@ public class DefaultNode implements Node, ClusterMemberChanges {
     MetaStore metaStore; // 持久化 currentTerm 和 votedFor
 
 
-    // 通过 statusStore 访问
+    // 通过 metaStore 访问
     public long getCurrentTerm() {
         return metaStore.getCurrentTerm();
     }
@@ -266,41 +266,48 @@ public class DefaultNode implements Node, ClusterMemberChanges {
         }
 
         int total = peerSet.getPeers().size();
-        log.info("日志复制结果: success={}, total={}, need={}",
-                successCount.get() + 1, total, total / 2 + 1);
-
-        // Leader 决定哪些日志可以提交
+        int majority = total / 2 + 1;
         List<Long> matchIndexList = new ArrayList<>(matchIndexes.values());
         matchIndexList.add(logModule.getLastIndex());
-
-        int majority = peerSet.getPeers().size() / 2 + 1;
         matchIndexList.sort(Collections.reverseOrder());
 
+        long termSnapShot = getCurrentTerm();
+        long oldCommit;
+        Long N = matchIndexList.get(majority - 1); // 5 4 4 3 2 找到 4 就是满足多数派的最大索引，然后寻找满足term相等的index
+
         synchronized (this){
-            // 找到满足多数派且属于当前任期的最大 N
-            for (Long N : matchIndexList) {
-                if (N <= commitIndex) break;
+            oldCommit = commitIndex;
+        }
 
-                // 统计有多少服务器的 matchIndex >= N
-                int count = 1; // 节点本身
-                for (Long peerMatch : matchIndexes.values()) {
-                    if (peerMatch >= N) count++;
-                }
-
-                LogEntry entry = logModule.read(N);
-                if(entry == null){
-                    log.error("致命错误：日志不存在: index={}", N);
+        // Leader 决定哪些日志可以提交
+        if(N > oldCommit){
+            long newCommit = oldCommit;
+            for (long i = N; i > commitIndex; i--) {
+                LogEntry entry = logModule.read(i);
+                if (entry == null) {
+                    log.error("致命错误：日志不存在: index={}", i);
                     return ClientKVAck.fail();
                 }
-                // 关键：只能提交当前任期的日志
-                if (count >= majority && entry.getTerm() == getCurrentTerm()) {
-                    commitIndex = N;
+                if (entry.getTerm() == getCurrentTerm()) {
+                    newCommit = i;
                     break;
                 }
             }
 
-            applyLogs();
+            if(newCommit > oldCommit){
+                synchronized (this){
+                    if(status != NodeStatus.LEADER || getCurrentTerm() != termSnapShot){
+                        log.warn("领导权已变更，放弃提交");
+                        return ClientKVAck.fail();
+                    }
+                    if(newCommit > commitIndex){
+                        commitIndex = newCommit;
+                    }
+                }
+            }
         }
+
+        applyLogs();
 
         if (logEntry.getIndex() <= commitIndex) {
             return ClientKVAck.ok();
@@ -308,20 +315,6 @@ public class DefaultNode implements Node, ClusterMemberChanges {
             log.warn("日志未提交: index={}", logEntry.getIndex());
             return ClientKVAck.fail(); // 必须让客户端重试
         }
-
-//        // 3. 将日志应用到状态机的判断改为基于 commitIndex
-////        if (logEntry.getIndex() <= commitIndex) {
-////            // 仅应用已提交的日志
-////            stateMachine.apply(logEntry);
-////            lastApplied = logEntry.getIndex();
-////            return ClientKVAck.ok();
-////        } else {
-////            // 未提交则回滚
-//////            logModule.removeOnStartIndex(logEntry.getIndex());
-//////            log.info("日志复制失败, 回滚: index={}", logEntry.getIndex());
-////            return ClientKVAck.fail();
-////        }
-
     }
 
     /**
@@ -418,6 +411,7 @@ public class DefaultNode implements Node, ClusterMemberChanges {
                 } catch (Exception e) {
                     log.warn("日志复制请求失败: {}", e.getMessage());
                 }
+                Thread.sleep(10);
             }
             // 超时
             return false;
@@ -429,6 +423,14 @@ public class DefaultNode implements Node, ClusterMemberChanges {
      * @param entry
      */
     private LogEntry getPreLog(LogEntry entry) {
+        if(entry.getIndex() == 1L){
+            return LogEntry.builder()
+                    .term(0)
+                    .index(0)
+                    .command(null)
+                    .build();
+        }
+
         LogEntry read = logModule.read(entry.getIndex() - 1);
         if (read == null) {
             log.debug("前一条日志不存在: logEntry={}", entry);
@@ -455,19 +457,9 @@ public class DefaultNode implements Node, ClusterMemberChanges {
         return rpcClient.send(r);
     }
 
-    @Override
-    public ClusterResult addPeer(Peer newPeer) {
-        return null;
-    }
-
-    @Override
-    public ClusterResult removePeer(Peer oldPeer) {
-        return null;
-    }
-
     /**
      * 节点变成 Leader 以后需要做的事情
-     * TODO 是不是需要添加更多操作？
+     * 发送一个空日志，并复制给其他节点
      */
     public void becomeLeaderToDoThing() {
         log.info("初始化 Leader 状态");
@@ -475,11 +467,103 @@ public class DefaultNode implements Node, ClusterMemberChanges {
         nextIndexes = new ConcurrentHashMap<>();
         matchIndexes = new ConcurrentHashMap<>();
 
+        List<Peer> peers = peerSet.getPeersWithoutSelf();
         Long lastIndex = logModule.getLastIndex();
-        for (Peer peer : peerSet.getPeersWithoutSelf()) {
+        for (Peer peer : peers) {
             nextIndexes.put(peer, lastIndex + 1);
             matchIndexes.put(peer, 0L);
         }
+
+        // 创建空日志并提交
+        LogEntry logEntry = LogEntry.builder()
+                .command(null)
+                .term(getCurrentTerm())
+                .build();
+
+        logModule.write(logEntry);
+        log.debug("Leader 写入本地日志: term={}, index={}", logEntry.getTerm(), logEntry.getIndex());
+
+        // 复制到其他节点
+        AtomicInteger successCount = new AtomicInteger(0);
+        List<Future<Boolean>> futureList = new ArrayList<>();
+
+        for (Peer peer : peerSet.getPeersWithoutSelf()) {
+            futureList.add(replication(peer, logEntry));
+        }
+
+        // 等待复制结果
+        CountDownLatch latch = new CountDownLatch(futureList.size());
+
+        for (Future<Boolean> future : futureList) {
+            RaftThreadPool.execute(() -> {
+                try {
+                    Boolean result = future.get(4000, TimeUnit.MILLISECONDS);
+                    if (result) {
+                        successCount.incrementAndGet();
+                    }
+                } catch (Exception e) {
+                    log.error("复制日志失败: {}", e.getMessage());
+                } finally {
+                    latch.countDown();
+                }
+            });
+        }
+
+        try {
+            latch.await(4000, TimeUnit.MILLISECONDS);
+        } catch (InterruptedException e) {
+            log.error("等待复制结果失败: {}", e.getMessage());
+        }
+
+        int total = peerSet.getPeers().size();
+        int majority = total / 2 + 1;
+        List<Long> matchIndexList = new ArrayList<>(matchIndexes.values());
+        matchIndexList.add(logModule.getLastIndex());
+        matchIndexList.sort(Collections.reverseOrder());
+
+        long termSnapShot = getCurrentTerm();
+        long oldCommit;
+        Long N = matchIndexList.get(majority - 1); // 5 4 4 3 2 找到 4 就是满足多数派的最大索引，然后寻找满足term相等的index
+
+        synchronized (this){
+            oldCommit = commitIndex;
+        }
+
+        // Leader 决定哪些日志可以提交
+        if(N > oldCommit){
+            long newCommit = oldCommit;
+            for (long i = N; i > commitIndex; i--) {
+                LogEntry entry = logModule.read(i);
+                if (entry == null) {
+                    log.error("致命错误：日志不存在: index={}", i);
+                }
+                if (entry.getTerm() == getCurrentTerm()) {
+                    newCommit = i;
+                    break;
+                }
+            }
+
+            if(newCommit > oldCommit){
+                synchronized (this){
+                    if(status != NodeStatus.LEADER || getCurrentTerm() != termSnapShot){
+                        log.warn("领导权已变更，放弃提交");
+                        return;
+                    }
+                    if(newCommit > commitIndex){
+                        commitIndex = newCommit;
+                    }
+                }
+            }
+        }
+
+        applyLogs();
+
+        if (logEntry.getIndex() <= commitIndex) {
+            log.debug("日志已提交: index={}", logEntry.getIndex());
+        } else {
+            log.warn("日志未提交: index={}", logEntry.getIndex());
+        }
+
     }
 
     /**
@@ -500,5 +584,15 @@ public class DefaultNode implements Node, ClusterMemberChanges {
                 break;
             }
         }
+    }
+
+    @Override
+    public ClusterResult addPeer(Peer newPeer) {
+        return null;
+    }
+
+    @Override
+    public ClusterResult removePeer(Peer oldPeer) {
+        return null;
     }
 }

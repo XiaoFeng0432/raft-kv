@@ -33,9 +33,9 @@ public class RaftNodeStarter {
         config.setPeerAddrs(Arrays.asList(
                 "localhost:8775",
                 "localhost:8776",
-                "localhost:8777",
-                "localhost:8778",
-                "localhost:8779"
+                "localhost:8777"
+//                "localhost:8778",
+//                "localhost:8779"
         ));
 
         // 创建并启动节点

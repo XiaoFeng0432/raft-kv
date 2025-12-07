@@ -143,19 +143,6 @@ public class DefaultMetaStore implements MetaStore {
         }
     }
 
-    /**
-     * 原子性更新 term 和 votedFor
-     */
-    public void updateTermAndVotedFor(long term, String votedFor) {
-        lock.lock();
-        try {
-            setCurrentTerm(term);
-            setVotedFor(votedFor);
-        } finally {
-            lock.unlock();
-        }
-    }
-
     public void destroy() throws Exception {
         metaDB.close();
         log.info("MetaStore 销毁成功");

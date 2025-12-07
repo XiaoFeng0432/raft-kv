@@ -128,11 +128,11 @@ public class DefaultConsensus implements Consensus {
         AppendEntryResult result = new AppendEntryResult();
         result.setSuccess(false);
 
-        try{
-            if(!appendLock.tryLock()){
-                return result;
-            }
+        if(!appendLock.tryLock()){
+            return result;
+        }
 
+        try{
             // 无论成功失败先设置返回值，也就是将自己的 term 返回给 Leader
             result.setTerm(node.getCurrentTerm());
 
@@ -210,7 +210,7 @@ public class DefaultConsensus implements Consensus {
             // 附加新日志
             for(LogEntry entry : param.getEntries()){
                 node.getLogModule().write(entry);
-                log.debug("写入日志成功: term={}, index={}", entry.getTerm(), entry.getIndex());
+//                log.debug("写入日志成功: term={}, index={}", entry.getTerm(), entry.getIndex());
             }
             result.setSuccess(true);
 

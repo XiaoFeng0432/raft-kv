@@ -44,7 +44,7 @@ public class NodeTest {
 
         String url = "localhost:8777";
 
-        for(int i = 2; i <= 100; i++){
+        for(int i = 11; i <= 20; i++){
             ClientKVAck res = put(String.valueOf(i), String.valueOf(i), url);
             System.out.println(res.getObj());
         }
@@ -61,7 +61,6 @@ public class NodeTest {
 
         return sendRequest(getReq, url);
     }
-
 
     public ClientKVAck put(String key, String value, String url){
         ClientKVReq putReq = ClientKVReq.builder()

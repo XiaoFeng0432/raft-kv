@@ -403,6 +403,7 @@ public class DefaultNode implements Node, ClusterMemberChanges {
                             }
                             nextIndexes.put(peer, nextIndex - 1);
                             log.warn("日志不匹配，减小 nextIndex 重试");
+                            Thread.sleep(500);
                         }
                     }
 
@@ -410,8 +411,9 @@ public class DefaultNode implements Node, ClusterMemberChanges {
 
                 } catch (Exception e) {
                     log.warn("日志复制请求失败: {}", e.getMessage());
+                    Thread.sleep(500);
                 }
-                Thread.sleep(10);
+
             }
             // 超时
             return false;

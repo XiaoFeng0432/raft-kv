@@ -13,6 +13,5 @@ public interface MetaStore {
 
     String getVotedFor();
 
-
     void destroy() throws Exception;
 }
